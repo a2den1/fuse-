@@ -1,0 +1,44 @@
+# Render 블루프린트 — 이 파일 하나로 Fuse 전체(화면 + 백엔드 + 디스코드 봇)가 올라갑니다.
+#
+#   https://render.com/deploy?repo=https://github.com/a2den1/fuse-
+#
+# 배포 화면에서 디스코드 값 3개만 입력하면 끝입니다.
+# 나머지는 아래 설정이 알아서 채웁니다.
+
+services:
+  - type: web
+    name: fuse
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter          # free 플랜은 15분 놀면 잠들어 봇 연결이 끊깁니다
+    healthCheckPath: /healthz
+
+    # 좋아요·알림·쪽지가 저장되는 곳. 없으면 재배포할 때마다 사라집니다.
+    disk:
+      name: fuse-data
+      mountPath: /app/data
+      sizeGB: 1
+
+    envVars:
+      # --- 배포할 때 물어보는 값 (디스코드 개발자 포털에서 복사) ---
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+
+      # --- 자동 ---
+      - key: SESSION_SECRET
+        generateValue: true          # Render 가 임의의 긴 값을 만들어 줍니다
+      - key: BASE_URL
+        fromService:
+          type: web
+          name: fuse
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: FUSE_REPLY_MODE
+        value: reply
