@@ -121,7 +121,23 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 h1, h2, h3, h4 { margin: 0; font-size: inherit; font-weight: 700; }
 p { margin: 0; }
 
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+/* 입력칸에는 외곽선을 두르지 않는다. 눌린 자리는 배경이 한 톤 밝아지는 것으로 안다. */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible { outline: none; }
+
+.searchfield:focus-within,
+.chatbar textarea:focus,
+.replybox textarea:focus,
+.composer textarea:focus,
+.bio-edit textarea:focus { background: var(--bg-soft); }
+
+/* 키보드로 옮겨 다닐 때는 어디에 있는지 보여야 하므로 버튼·링크에는 표시를 남긴다.
+   이것도 선이 아니라 배경으로. */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible { outline: none; background: var(--bg-press); border-radius: 10px; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }

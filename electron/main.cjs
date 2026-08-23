@@ -15,6 +15,42 @@ const APP_ROOT = path.join(__dirname, '..');
 const USER_DIR = app.getPath('userData');
 const CRED_FILE = path.join(USER_DIR, 'credentials.json');
 const DATA_DIR = path.join(USER_DIR, 'data');
+const LOG_FILE = path.join(USER_DIR, 'fuse.log');
+
+/* ------------------------------ 로그 ------------------------------ */
+
+/*
+ * 패키징된 앱은 콘솔이 없어서 console.log 가 어디에도 남지 않는다.
+ * 무엇이 잘못됐는지 볼 방법이 있어야 하므로 파일로도 함께 남긴다.
+ */
+function initLog() {
+  try {
+    fs.mkdirSync(USER_DIR, { recursive: true });
+    // 너무 커지면 한 번 비운다
+    if (fs.existsSync(LOG_FILE) && fs.statSync(LOG_FILE).size > 512 * 1024) {
+      fs.writeFileSync(LOG_FILE, '');
+    }
+  } catch { /* 로그를 못 써도 앱은 떠야 한다 */ }
+
+  const stamp = () => new Date().toISOString().slice(11, 23);
+  const write = (level, args) => {
+    const line = '[' + stamp() + '] ' + level + ' ' +
+      args.map((a) => (a instanceof Error ? (a.stack || a.message) : typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
+    try { fs.appendFileSync(LOG_FILE, line + '\n'); } catch { /* noop */ }
+  };
+
+  for (const level of ['log', 'warn', 'error']) {
+    const original = console[level].bind(console);
+    console[level] = (...args) => { original(...args); write(level.toUpperCase(), args); };
+  }
+
+  process.on('uncaughtException', (err) => console.error('처리되지 않은 예외:', err));
+  process.on('unhandledRejection', (err) => console.error('처리되지 않은 거부:', err));
+
+  console.log('--- Fuse ' + app.getVersion() + ' 시작 (' + process.platform + ') ---');
+  console.log('설정 폴더: ' + USER_DIR);
+}
+initLog();
 
 const PORT = Number(process.env.FUSE_PORT || 5195);
 const ORIGIN = 'http://localhost:' + PORT;
@@ -48,6 +84,10 @@ function applyEnv(creds) {
   process.env.BASE_URL = ORIGIN;
   process.env.FUSE_DATA_DIR = DATA_DIR;
   process.env.NODE_ENV = 'production';
+  // 여기서 넣은 자격증명이 옆에 있는 .env 에 밀리지 않게 한다
+  process.env.FUSE_CREDENTIALS_FROM_HOST = '1';
+  // 연결에 실패해도 서버가 프로세스를 죽이지 않고 예외를 던지게 한다
+  process.env.FUSE_EMBEDDED = '1';
 
   // 로그인 쿠키 서명 키 — 이 컴퓨터에서 한 번 만들어 두고 계속 쓴다
   if (!creds.sessionSecret) {
@@ -102,7 +142,20 @@ function createWindow(startUrl) {
     },
   });
 
+  console.log('창을 엽니다: ' + startUrl);
   mainWindow.once('ready-to-show', () => mainWindow.show());
+
+  // ready-to-show 가 안 오면 창이 영영 안 보인다. 안전장치로 한 번 더 띄운다.
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      console.warn('ready-to-show 가 오지 않아 창을 강제로 띄웁니다.');
+      mainWindow.show();
+    }
+  }, 4000);
+
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    console.error('페이지 로드 실패 (' + code + ' ' + desc + '): ' + url);
+  });
 
   // 화면 쪽 오류를 앱 로그로 끌어올린다.
   // 이게 없으면 설정 화면이 조용히 죽어도 원인을 볼 방법이 없다.
@@ -165,7 +218,8 @@ ipcMain.handle('fuse:redirect-uri', () => ORIGIN + '/auth/callback');
 
 // 두 번 실행되면 게이트웨이가 두 번 붙어 문제가 생긴다
 if (!app.requestSingleInstanceLock()) {
-  app.quit();
+  console.log('이미 실행 중인 Fuse 가 있어 이 창은 닫습니다.');
+  app.exit(0);
 } else {
   app.on('second-instance', () => {
     if (mainWindow) {
@@ -179,34 +233,68 @@ if (!app.requestSingleInstanceLock()) {
 
     const creds = readCredentials();
     if (!creds) {
-      // 자격증명이 없으면 설정 화면부터
+      console.log('자격증명이 없습니다. 설정 화면을 띄웁니다.');
       createWindow('file://' + path.join(__dirname, 'setup.html'));
       return;
     }
 
+    console.log('자격증명을 찾았습니다. 서버를 시작합니다.');
     applyEnv(creds);
+
+    let failure = null;
     try {
       await startServer();
     } catch (err) {
-      dialog.showErrorBox('Fuse 를 시작하지 못했습니다', err.message);
-      app.quit();
+      failure = err;
+      console.error('서버 시작 실패:', err);
+    }
+
+    const up = failure ? false : await waitForServer();
+    console.log('서버 응답: ' + (up ? '정상' : '없음'));
+
+    if (up) {
+      createWindow(ORIGIN);
       return;
     }
 
-    const up = await waitForServer();
-    if (!up) {
-      dialog.showErrorBox(
-        'Fuse 를 시작하지 못했습니다',
-        '디스코드에 접속하지 못했습니다.\n\n' +
-        '개발자 포털에서 MESSAGE CONTENT INTENT 와 SERVER MEMBERS INTENT 가\n' +
-        '켜져 있는지, 봇 토큰이 맞는지 확인해 주세요.\n\n' +
-        '설정 파일: ' + CRED_FILE,
-      );
+    /*
+     * 붙지 못했다. 대개 토큰이 바뀌었거나 특권 인텐트가 꺼진 경우다.
+     * 여기서 그냥 죽으면 다음 실행 때도 같은 자리에서 막히므로,
+     * 이유를 알려주고 설정 화면으로 되돌려 다시 입력할 수 있게 한다.
+     */
+    const reason = failure && /invalid token/i.test(failure.message)
+      ? '봇 토큰이 올바르지 않습니다. 개발자 포털에서 토큰을 다시 확인해 주세요.'
+      : failure && /disallowed intents/i.test(failure.message)
+        ? '특권 인텐트가 꺼져 있습니다.\n개발자 포털 → Bot → Privileged Gateway Intents 에서\nMESSAGE CONTENT 와 SERVER MEMBERS 를 켜 주세요.'
+        : '디스코드에 접속하지 못했습니다.\n' + (failure ? failure.message : '');
+
+    // 잘못된 자격증명은 치워서 설정 화면이 뜨게 한다 (되돌릴 수 있게 보관)
+    try {
+      fs.renameSync(CRED_FILE, path.join(USER_DIR, 'credentials.rejected.json'));
+      console.log('자격증명을 credentials.rejected.json 으로 옮겼습니다.');
+    } catch (err) {
+      console.warn('자격증명을 옮기지 못했습니다: ' + err.message);
     }
-    createWindow(up ? ORIGIN : 'file://' + path.join(__dirname, 'setup.html'));
+
+    dialog.showErrorBox('디스코드에 연결하지 못했습니다', reason + '\n\n로그: ' + LOG_FILE);
+    createWindow('file://' + path.join(__dirname, 'setup.html'));
   });
 
-  app.on('window-all-closed', () => app.quit());
+  /*
+   * 창을 닫으면 확실히 끝내야 한다.
+   *
+   * 디스코드 게이트웨이 연결과 HTTP·웹소켓 서버가 이벤트 루프를 붙잡고 있어서
+   * app.quit() 만으로는 프로세스가 남는 경우가 있다. 그렇게 남은 프로세스가
+   * 중복 실행 잠금과 포트를 쥐고 있으면, 다음에 앱을 눌러도 조용히 종료되어
+   * "실행이 안 된다" 처럼 보인다. 잠깐 기다린 뒤 강제로 내린다.
+   */
+  const forceExit = () => {
+    console.log('종료합니다.');
+    app.quit();
+    setTimeout(() => app.exit(0), 1200).unref?.();
+  };
+
+  app.on('window-all-closed', forceExit);
   app.on('activate', () => {
     if (!BrowserWindow.getAllWindows().length) createWindow(ORIGIN);
   });

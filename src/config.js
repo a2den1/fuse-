@@ -8,15 +8,20 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const parsed = dotenv.config({ path: path.join(ROOT, '.env') }).parsed || {};
 
 /*
- * 자격증명만은 .env 를 우선한다.
+ * 자격증명은 .env 를 우선한다.
  * 시스템 환경변수에 예전 봇 토큰이 남아 있으면 조용히 그게 이겨서
  * "분명 .env 를 고쳤는데 옛날 봇으로 붙는" 사고가 난다.
  *
- * 반대로 PORT 같은 나머지 값까지 덮어쓰면 `PORT=8080 npm start` 가 먹지 않으므로
- * 덮어쓰기는 아래 세 개로만 좁힌다.
+ * 단, 데스크톱 앱처럼 실행하는 쪽이 자격증명을 직접 넣어준 경우는 예외다.
+ * 그때 .env 가 이기면 앱에 새로 입력한 토큰이 옛날 .env 값에 밀려
+ * "토큰이 올바르지 않습니다" 로 죽는다.
+ *
+ * PORT 같은 나머지 값은 덮어쓰지 않는다 — `PORT=8080 npm start` 가 먹어야 하므로.
  */
-for (const key of ['DISCORD_BOT_TOKEN', 'DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET']) {
-  if (parsed[key]) process.env[key] = parsed[key];
+if (process.env.FUSE_CREDENTIALS_FROM_HOST !== '1') {
+  for (const key of ['DISCORD_BOT_TOKEN', 'DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET']) {
+    if (parsed[key]) process.env[key] = parsed[key];
+  }
 }
 
 const bool = (v, d = false) => {

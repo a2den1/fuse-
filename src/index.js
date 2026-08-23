@@ -90,6 +90,16 @@ realtime.attach(server);
 try {
   await svc.boot();
 } catch (err) {
+  /*
+   * 데스크톱 앱 안에서 돌 때는 여기서 프로세스를 죽이면 안 된다.
+   * 창도 못 띄운 채 프로세스만 남아 포트와 중복 실행 잠금을 쥐고 있게 되고,
+   * 그다음부터는 앱을 눌러도 아무 일이 없는 것처럼 보인다.
+   * 부른 쪽이 사정을 알고 처리하도록 그대로 던진다.
+   */
+  if (process.env.FUSE_EMBEDDED === '1') {
+    console.error('[fuse] 디스코드 연결 실패:', err.message);
+    throw err;
+  }
   console.error('[fuse] 디스코드 연결에 실패해 종료합니다.');
   process.exit(1);
 }

@@ -40,7 +40,8 @@
     color: var(--text); font: inherit; font-size: 14px;
     transition: box-shadow .2s var(--ease);
   }
-  input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+  /* 외곽선 대신 배경이 한 톤 밝아지는 것으로 표시한다 */
+  input:focus { outline: none; background: #24242a; }
   input::placeholder { color: var(--text-3); }
   button {
     width: 100%; height: 48px; margin-top: 8px;
