@@ -103,6 +103,26 @@ function createWindow(startUrl) {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
+
+  // 화면 쪽 오류를 앱 로그로 끌어올린다.
+  // 이게 없으면 설정 화면이 조용히 죽어도 원인을 볼 방법이 없다.
+  // 시그니처가 Electron 버전마다 다르다.
+  // 예전: (event, level, message, line, sourceId) / 지금: (details)
+  mainWindow.webContents.on('console-message', function onConsole(...args) {
+    const first = args[0];
+    const isDetails = first && typeof first === 'object' && 'message' in first;
+    const level = isDetails ? first.level : args[1];
+    const text = isDetails ? first.message : args[2];
+    const serious = level === 'error' || level === 'warning' || level === 2 || level === 3;
+    if (serious && text) console.error('[화면] ' + text);
+  });
+  mainWindow.webContents.on('preload-error', (_e, preloadPath, error) => {
+    console.error('[preload] ' + preloadPath + ' — ' + error.message);
+  });
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    console.error('[화면] 렌더러가 종료됨: ' + details.reason);
+  });
+
   mainWindow.loadURL(startUrl);
 
   // 외부 링크는 기본 브라우저로 (디스코드 로그인은 앱 안에서 진행)

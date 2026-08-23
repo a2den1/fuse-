@@ -2,7 +2,9 @@
 <html lang="ko" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+<!-- file:// 로 열리는 로컬 화면이라 'self' 로는 자기 스크립트도 막힌다.
+     바깥에서 오는 내용이 하나도 없고 nodeIntegration 도 꺼져 있으므로 인라인만 허용한다. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; form-action 'none';">
 <title>Fuse 설정</title>
 <style>
   :root {
@@ -112,33 +114,64 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
+  const err = $('error');
+  const btn = $('submit');
 
-  $('portal').addEventListener('click', () =>
-    window.fuse.openExternal('https://discord.com/developers/applications'));
+  const showError = (message) => {
+    err.textContent = message;
+    err.hidden = false;
+  };
 
-  window.fuse.redirectUri().then((uri) => { $('redirect').textContent = uri; });
-
+  /* 제출 핸들러를 가장 먼저 붙인다.
+     아래 어딘가에서 예외가 나도 버튼이 먹통이 되지는 않도록. */
   $('form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn = $('submit');
-    const err = $('error');
     err.hidden = true;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spin"></span>디스코드에 연결하는 중…';
 
-    const res = await window.fuse.saveCredentials({
+    if (!window.fuse) {
+      showError('앱 내부 연결이 준비되지 않았습니다. 앱을 껐다 다시 켜 주세요.');
+      return;
+    }
+
+    const values = {
       clientId: $('clientId').value.trim(),
       clientSecret: $('clientSecret').value.trim(),
       botToken: $('botToken').value.trim(),
-    });
+    };
+    if (!values.clientId || !values.clientSecret || !values.botToken) {
+      showError('세 칸을 모두 채워 주세요.');
+      return;
+    }
 
-    if (!res.ok) {
-      err.textContent = res.error || '연결하지 못했습니다.';
-      err.hidden = false;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>디스코드에 연결하는 중…';
+
+    let res;
+    try {
+      res = await window.fuse.saveCredentials(values);
+    } catch (ex) {
+      res = { ok: false, error: ex && ex.message ? ex.message : String(ex) };
+    }
+
+    if (!res || !res.ok) {
+      showError((res && res.error) || '연결하지 못했습니다.');
       btn.disabled = false;
       btn.textContent = '다시 시도';
     }
+    // 성공하면 메인 화면으로 넘어가므로 여기서 더 할 일이 없다
   });
+
+  /* 아래는 있으면 좋은 것들 — 실패해도 연결하기는 계속 눌린다 */
+  if (window.fuse) {
+    $('portal').addEventListener('click', () => {
+      window.fuse.openExternal('https://discord.com/developers/applications');
+    });
+    Promise.resolve(window.fuse.redirectUri())
+      .then((uri) => { if (uri) $('redirect').textContent = uri; })
+      .catch(() => { /* 기본값 그대로 둔다 */ });
+  } else {
+    showError('앱 내부 연결이 준비되지 않았습니다. 앱을 껐다 다시 켜 주세요.');
+  }
 </script>
 </body>
 </html>
