@@ -7,7 +7,7 @@
  * 디스코드 자격증명은 저장소가 아니라 사용자 폴더에 둔다.
  *   Windows: %APPDATA%\Fuse\credentials.json
  */
-const { app, BrowserWindow, shell, dialog, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, shell, dialog, ipcMain, Menu, session } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 
@@ -157,6 +157,17 @@ function createWindow(startUrl) {
     console.error('페이지 로드 실패 (' + code + ' ' + desc + '): ' + url);
   });
 
+  /*
+   * 로그인이 끝나 앱 화면으로 돌아온 순간 쿠키를 디스크에 내린다.
+   * 종료할 때만 저장하면, 그전에 강제로 꺼졌을 때 로그인이 날아간다.
+   */
+  mainWindow.webContents.on('did-navigate', (_e, url) => {
+    if (!url.startsWith(ORIGIN) || url.includes('/login.html')) return;
+    session.defaultSession.cookies.flushStore()
+      .then(() => console.log('로그인 상태를 저장했습니다.'))
+      .catch(() => {});
+  });
+
   // 화면 쪽 오류를 앱 로그로 끌어올린다.
   // 이게 없으면 설정 화면이 조용히 죽어도 원인을 볼 방법이 없다.
   // 시그니처가 Electron 버전마다 다르다.
@@ -288,8 +299,21 @@ if (!app.requestSingleInstanceLock()) {
    * 중복 실행 잠금과 포트를 쥐고 있으면, 다음에 앱을 눌러도 조용히 종료되어
    * "실행이 안 된다" 처럼 보인다. 잠깐 기다린 뒤 강제로 내린다.
    */
-  const forceExit = () => {
+  const forceExit = async () => {
     console.log('종료합니다.');
+
+    /*
+     * 로그인 쿠키를 먼저 디스크에 내린다.
+     * app.exit() 은 정리 과정을 건너뛰기 때문에, 이걸 빼먹으면
+     * 서버에는 세션이 남아 있는데 쿠키만 사라져서 다음에 켤 때 다시 로그인해야 한다.
+     */
+    try {
+      await session.defaultSession.cookies.flushStore();
+      console.log('로그인 정보를 저장했습니다.');
+    } catch (err) {
+      console.warn('쿠키 저장 실패: ' + err.message);
+    }
+
     app.quit();
     setTimeout(() => app.exit(0), 1200).unref?.();
   };
