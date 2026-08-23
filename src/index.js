@@ -56,15 +56,30 @@ app.use('/vendor/morphicons', express.static(path.join(ROOT, 'node_modules/morph
   setHeaders(res) { res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); },
 }));
 
+/*
+ * 코드(html/css/js)는 절대 붙잡아 두지 않는다.
+ *
+ * 예전에는 1시간 max-age 를 줬는데, 그러면 브라우저가 재검증조차 하지 않아서
+ * 앱을 새로 설치해도 한 시간 동안 옛 화면이 그대로 떴다. 셸만 no-cache 여도
+ * 그 셸이 불러오는 스크립트와 스타일이 옛것이면 결국 옛 앱이다.
+ *
+ * no-cache 는 "쓰지 마라" 가 아니라 "쓰기 전에 물어봐라" 이다.
+ * ETag 가 같으면 304 한 줄로 끝나므로 로컬에서는 사실상 공짜다.
+ * 내용이 잘 바뀌지 않는 폰트·이미지만 길게 잡아 둔다.
+ */
+const CODE = /\.(html|css|js|mjs|map)$/i;
+
 app.use(express.static(config.publicDir, {
   index: false,
-  // 개발 중에는 캐시를 끈다 — 고친 스크립트가 반영되지 않는 사고를 막는다
-  maxAge: config.dev ? 0 : '1h',
   etag: true,
+  lastModified: true,
+  maxAge: 0,
   setHeaders(res, filePath) {
-    // 앱 셸은 항상 재검증한다 — 배포 후 옛 화면이 남는 걸 막는다
-    if (config.dev || filePath.endsWith('index.html') || filePath.endsWith('login.html')) {
+    if (config.dev || CODE.test(filePath)) {
       res.setHeader('Cache-Control', 'no-cache');
+    } else {
+      // 폰트·아이콘·이미지 — 바뀌면 파일 이름이 바뀐다
+      res.setHeader('Cache-Control', 'public, max-age=604800');
     }
   },
 }));

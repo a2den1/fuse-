@@ -1,6 +1,6 @@
 {
   "name": "fuse",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Fuse — 스레드 스타일 UI로 쓰는 디스코드 클라이언트",
   "type": "module",
@@ -20,7 +20,9 @@
     "appId": "im.fuse.desktop",
     "productName": "Fuse",
     "copyright": "Fuse",
-    "directories": { "output": "dist" },
+    "directories": {
+      "output": "dist"
+    },
     "files": [
       "electron/**/*",
       "src/**/*",
@@ -28,11 +30,23 @@
       "package.json",
       "!**/*.map"
     ],
-    "extraMetadata": { "main": "electron/main.cjs" },
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.ico"
     },
@@ -43,7 +57,9 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Fuse"
     },
-    "portable": { "artifactName": "Fuse-${version}-portable.exe" }
+    "portable": {
+      "artifactName": "Fuse-${version}-portable.exe"
+    }
   },
   "engines": {
     "node": ">=20"

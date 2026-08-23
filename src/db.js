@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
+import { writeFileSafe } from './safeWrite.js';
 
 const FILE = path.join(config.dataDir, 'db.json');
 
@@ -42,8 +43,7 @@ function flush() {
   dirty = false;
   try {
     fs.mkdirSync(config.dataDir, { recursive: true });
-    fs.writeFileSync(`${FILE}.tmp`, JSON.stringify(state));
-    fs.renameSync(`${FILE}.tmp`, FILE);
+    writeFileSafe(FILE, JSON.stringify(state));
   } catch (err) {
     console.error('[db] 저장 실패:', err.message);
   }

@@ -124,6 +124,28 @@ async function waitForServer(timeoutMs = 30_000) {
 
 /* ------------------------------ 창 ------------------------------ */
 
+/*
+ * 새 버전으로 올라왔으면 화면 캐시를 한 번 비운다.
+ *
+ * 서버가 코드 파일에 no-cache 를 붙이므로 원래는 필요 없지만,
+ * 그 이전 버전이 남긴 max-age 캐시는 서버가 뭐라고 하든 만료될 때까지 살아 있다.
+ * 설치를 했는데 옛 화면이 뜨는 일은 한 번으로 족하다.
+ */
+async function clearCacheIfUpgraded() {
+  const stamp = path.join(USER_DIR, 'version');
+  let seen = null;
+  try { seen = fs.readFileSync(stamp, 'utf8').trim(); } catch { /* 첫 실행 */ }
+  if (seen === app.getVersion()) return;
+
+  try {
+    await session.defaultSession.clearCache();
+    console.log('버전이 바뀌어 화면 캐시를 비웠습니다: ' + (seen || '없음') + ' -> ' + app.getVersion());
+  } catch (err) {
+    console.warn('캐시를 비우지 못했습니다: ' + err.message);
+  }
+  try { fs.writeFileSync(stamp, app.getVersion()); } catch { /* 다음에 다시 비우면 된다 */ }
+}
+
 function createWindow(startUrl) {
   mainWindow = new BrowserWindow({
     width: 1180,
@@ -241,6 +263,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
+    await clearCacheIfUpgraded();
 
     const creds = readCredentials();
     if (!creds) {
@@ -280,8 +303,15 @@ if (!app.requestSingleInstanceLock()) {
         : '디스코드에 접속하지 못했습니다.\n' + (failure ? failure.message : '');
 
     // 잘못된 자격증명은 치워서 설정 화면이 뜨게 한다 (되돌릴 수 있게 보관)
+    const rejected = path.join(USER_DIR, 'credentials.rejected.json');
     try {
-      fs.renameSync(CRED_FILE, path.join(USER_DIR, 'credentials.rejected.json'));
+      try {
+        fs.renameSync(CRED_FILE, rejected);
+      } catch {
+        // 동기화 폴더에서는 rename 이 막히기도 한다. 복사 후 지우는 것으로 대신한다.
+        fs.copyFileSync(CRED_FILE, rejected);
+        fs.unlinkSync(CRED_FILE);
+      }
       console.log('자격증명을 credentials.rejected.json 으로 옮겼습니다.');
     } catch (err) {
       console.warn('자격증명을 옮기지 못했습니다: ' + err.message);

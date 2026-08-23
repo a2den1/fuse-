@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
+import { writeFileSafe } from './safeWrite.js';
 
 const COOKIE = 'fuse_sid';
 const sessions = new Map(); // sid -> { id, userId, user, accessToken, refreshToken, expiresAt, createdAt, touchedAt }
@@ -36,9 +37,7 @@ function persist() {
         createdAt: s.createdAt,
         touchedAt: s.touchedAt,
       }));
-      const tmp = STORE() + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(rows), { mode: 0o600 });
-      fs.renameSync(tmp, STORE());
+      writeFileSafe(STORE(), JSON.stringify(rows), { mode: 0o600 });
     } catch (err) {
       console.warn('[session] 저장 실패:', err.message);
     }
