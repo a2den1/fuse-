@@ -161,16 +161,25 @@ p { margin: 0; }
 .rail-logo { width: 38px; height: 38px; display: grid; place-items: center; color: var(--text); flex: none; }
 .rail-logo svg { width: 24px; height: 32px; }
 
-.rail-nav {
+/* 좌측 레일도 모바일 탭독과 같은 유리 재질로.
+   flex:1 로 늘리지 않고 내용만큼만 잡은 뒤 위아래 auto 여백으로 가운데 세운다. */
+.rail-nav,
+.rail-foot {
   position: relative;
-  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 8px;
+  flex: none;
+  gap: 4px;
+  padding: 7px 6px;
+  border-radius: 26px;
+  background: var(--glass);
+  backdrop-filter: saturate(2) blur(30px);
+  -webkit-backdrop-filter: saturate(2) blur(30px);
+  box-shadow: var(--shadow-dock);
 }
 
-.rail-foot { display: flex; flex-direction: column; gap: 8px; }
+.rail-nav { margin: auto 0; }
+.rail-foot { margin-bottom: 0; }
 /* 쪽지·설정 바로가기 — 알약 없이 색으로만 현재 위치를 표시 */
 .rail-link .nav-ico { background: transparent; }
 .rail-link:hover .nav-ico { background: var(--bg-hover); }
@@ -207,7 +216,9 @@ p { margin: 0; }
   transition: color var(--dur) var(--ease), transform var(--dur-fast) var(--spring);
 }
 .nav-btn:active { transform: scale(0.9); }
+/* 활성 표시는 색과 선 굵기로. 스트로크 아이콘을 채우면 모양이 뭉개진다. */
 .nav-btn.is-active { color: var(--text); }
+.nav-btn.is-active .ic { stroke-width: 2.3; }
 
 .nav-ico {
   position: relative;
@@ -218,8 +229,8 @@ p { margin: 0; }
   border-radius: 13px;
   z-index: 1;
 }
-.rail .nav-btn { width: 56px; height: 48px; }
-.rail .nav-btn .nav-ico { width: 56px; height: 48px; border-radius: 16px; }
+.rail .nav-btn { width: 52px; height: 46px; }
+.rail .nav-btn .nav-ico { width: 52px; height: 46px; border-radius: 18px; }
 
 .nav-label { font-size: 10.5px; font-weight: 600; letter-spacing: -0.01em; z-index: 1; }
 
@@ -234,16 +245,15 @@ p { margin: 0; }
   pointer-events: none;
   z-index: 0;
 }
-.rail .nav-pill { border-radius: 16px; }
-
-/* 탭바 활성 표시는 색이 아니라 유리 재질로 — 뒤가 비쳐 보이는 한 겹 */
-.tabbar .nav-pill {
+/* 활성 표시는 색이 아니라 유리 재질로 — 뒤가 비쳐 보이는 한 겹 */
+.tabbar .nav-pill,
+.rail .nav-pill {
   background: var(--glass-pill);
   backdrop-filter: blur(6px) saturate(1.6) brightness(1.28);
   -webkit-backdrop-filter: blur(6px) saturate(1.6) brightness(1.28);
   box-shadow: inset 0 1px 0 var(--glass-sheen), 0 2px 10px rgba(0, 0, 0, 0.16);
 }
-.tabbar .nav-btn.is-active { color: var(--text); }
+.rail .nav-pill { border-radius: 18px; }
 
 .badge {
   position: absolute;

@@ -285,9 +285,20 @@ function makeNavGroup(className, { labelled = false } = {}) {
   return bar;
 }
 
-function placePill(group, btn) {
+function placePill(group, btn, retry = 0) {
   const { pill } = group;
-  if (!btn || !btn.offsetWidth) { pill.hidden = true; return; }
+  if (!btn) { pill.hidden = true; return; }
+
+  // 첫 렌더에서는 아직 크기가 없을 수 있다. 그때 숨겨두고 끝내면
+  // 아무도 다시 계산해주지 않아 알약이 영영 안 보인다.
+  if (!btn.offsetWidth) {
+    pill.hidden = true;
+    if (retry < 3) {
+      requestAnimationFrame(() => placePill(group, btn, retry + 1));
+      setTimeout(() => placePill(group, btn, retry + 1), 60 * (retry + 1));
+    }
+    return;
+  }
   const target = btn.querySelector('.nav-ico') || btn;
   pill.hidden = false;
   pill.style.width = target.offsetWidth + 'px';
@@ -297,10 +308,11 @@ function placePill(group, btn) {
 }
 
 function syncNav(pathname) {
+  // 스트로크 아이콘은 채우면 원래 모양이 뭉개진다 (검색은 원, 홈은 덩어리).
+  // 활성 표시는 색과 선 굵기, 그리고 뒤에 깔리는 유리 알약으로만 한다.
   for (const btn of railLinks) {
     const active = !!btn._path && pathname.startsWith(btn._path);
     btn.classList.toggle('is-active', active);
-    btn.querySelector('.ic')?.classList.toggle('is-filled', active);
   }
 
   for (const group of navGroups) {
@@ -309,7 +321,6 @@ function syncNav(pathname) {
       const target = targetOf(btn._item);
       const active = !!target && pathname === target;
       btn.classList.toggle('is-active', active);
-      btn.querySelector('.ic')?.classList.toggle('is-filled', active);
       if (active) activeBtn = btn;
     }
     // 알약이 처음 놓일 때는 미끄러지지 않게 (레이아웃 전 0에서 날아오는 것 방지)
