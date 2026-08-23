@@ -1,23 +1,24 @@
 import { db, save } from './db.js';
 
-const lk = (channelId, messageId) => `${channelId}:${messageId}`;
 const rk = (channelId, messageId, key) => `${channelId}:${messageId}:${key}`;
 
-export function likesOf(channelId, messageId) {
-  return db.likes[lk(channelId, messageId)] || [];
-}
+/*
+ * 하트는 별도의 좋아요가 아니라 ❤️ 리액션이다.
+ *
+ * 예전에는 좋아요를 Fuse 안에만 저장했다. 그러면 디스코드에서 ❤️ 를 눌러도
+ * Fuse 의 하트는 비어 있고, Fuse 에서 하트를 눌러도 디스코드에는 아무 일도
+ * 일어나지 않는다. 같은 것을 두 군데에 따로 세고 있었던 셈이다.
+ * 이제 둘은 같은 하나다.
+ */
+export const HEART = '❤️';
 
-export function toggleLike(channelId, messageId, userId) {
-  const key = lk(channelId, messageId);
-  const list = db.likes[key] ? [...db.likes[key]] : [];
-  const i = list.indexOf(userId);
-  const liked = i < 0;
-  if (liked) list.push(userId);
-  else list.splice(i, 1);
-  if (list.length) db.likes[key] = list;
-  else delete db.likes[key];
+/** 리액션 누른 사람 이름을 나중에 보여주려면 누구인지 기억해 둬야 한다 */
+export function rememberAuthorInfo(user) {
+  if (!user?.id) return;
+  const prev = db.authorInfo[user.id];
+  if (prev?.displayName === user.displayName && prev?.avatar === user.avatar) return;
+  db.authorInfo[user.id] = { displayName: user.displayName, avatar: user.avatar };
   save();
-  return { liked, count: list.length };
 }
 
 export function reactorsOf(channelId, messageId, key) {
@@ -42,15 +43,18 @@ export function setReactor(channelId, messageId, key, userId, on) {
  */
 export function hydrate(post, viewerId, { canManage = false } = {}) {
   if (!post) return null;
-  const likes = likesOf(post.channelId, post.id);
   const mine = post.author?.id === viewerId;
 
-  const reactions = (post.reactions || []).map((r) => {
+  const all = (post.reactions || []).map((r) => {
     const proxied = reactorsOf(post.channelId, post.id, r.key);
     // 봇이 대신 누른 리액션은 Fuse 유저 수가 진짜 숫자다.
     const count = r.botReacted ? Math.max(r.count - 1, 0) + proxied.length : r.count;
     return { ...r, count, me: proxied.includes(viewerId), proxied: proxied.length };
   }).filter((r) => r.count > 0);
+
+  // 하트는 액션 바의 버튼이 맡는다. 칩으로 또 보여주면 같은 것이 두 번 나온다.
+  const heart = all.find((r) => r.key === HEART);
+  const reactions = all.filter((r) => r.key !== HEART);
 
   const mentionedMe = !!(
     post.mentions?.users?.[viewerId] ||
@@ -60,8 +64,8 @@ export function hydrate(post, viewerId, { canManage = false } = {}) {
   return {
     ...post,
     reactions,
-    likeCount: likes.length,
-    liked: likes.includes(viewerId),
+    likeCount: heart?.count || 0,
+    liked: !!heart?.me,
     mine,
     mentionedMe,
     // 웹훅으로 대신 보낸 글만 수정/삭제할 수 있다 (진짜 디스코드 유저의 글은 손댈 수 없음)

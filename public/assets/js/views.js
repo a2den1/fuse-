@@ -6,7 +6,7 @@ import {
 import { api } from './api.js';
 import { state, nav, on, emit } from './state.js';
 import { renderPost, renderFeedList, skeletonFeed, playArrival } from './post.js';
-import { openComposer } from './compose.js';
+import { openComposer, inlineComposer } from './compose.js';
 import { plainText } from './markdown.js';
 import { focusOn } from './live.js';
 import { attachMentions } from './mention.js';
@@ -95,7 +95,10 @@ export function homeView() {
   renderChips();
   load(true);
 
-  const el = view(chips, feedWrap);
+  // 서버 칩 바로 아래에서 곧장 글을 쓴다 — 글쓰기가 화면 이동이 아니게
+  const composer = inlineComposer();
+
+  const el = view(chips, composer, feedWrap);
 
   // 맨 위에서 당기면 도화선이 타들어가고 새로고침
   let ptr = null;
@@ -107,7 +110,7 @@ export function homeView() {
     el._ptr = ptr;
   });
 
-  el._cleanup = () => { offNew(); stopInfinite?.(); ptr?.destroy(); };
+  el._cleanup = () => { offNew(); stopInfinite?.(); ptr?.destroy(); composer._cleanup?.(); };
   return el;
 }
 
@@ -843,12 +846,17 @@ export function dmView(userId) {
   function bubbleMedia(list) {
     if (!list?.length) return null;
     const box = h('div', { class: 'bubble-media' });
+    const viewable = list.filter((a) => a.url && (a.isImage || a.isVideo))
+      .map((a) => ({ url: a.url, name: a.name || '', video: !!a.isVideo }));
     for (const a of list) {
       if (a.isImage && a.url) {
         box.append(h('img', {
           src: a.url, alt: a.name || '', loading: 'lazy',
           ...(a.width && a.height ? { style: { aspectRatio: a.width + ' / ' + a.height } } : {}),
-          onClick: (e) => { e.stopPropagation(); openLightbox(a.url); },
+          onClick: (e) => {
+            e.stopPropagation();
+            openLightbox(viewable, { index: Math.max(viewable.findIndex((v) => v.url === a.url), 0) });
+          },
         }));
       } else if (a.isVideo && a.url) {
         box.append(h('video', { src: a.url, controls: true, preload: 'metadata', playsinline: true }));

@@ -269,6 +269,20 @@ export const backend = {
     return fresh ? store.upsert(channelId, normalizeMessage(fresh)) : null;
   },
 
+  /** 이 리액션을 실제로 누른 사람들 (봇은 빼고 — 봇 자리는 Fuse 유저가 채운다) */
+  async reactionUsers(channelId, messageId, key, limit = 30) {
+    const ch = await resolveChannel(channelId);
+    const msg = await ch?.messages?.fetch(messageId).catch(() => null);
+    if (!msg) return [];
+    const found = msg.reactions.cache.find((r) => emojiKey(r.emoji) === key);
+    if (!found) return [];
+    const users = await found.users.fetch({ limit }).catch(() => null);
+    if (!users) return [];
+    return [...users.values()]
+      .filter((u) => u.id !== client.user?.id)
+      .map((u) => normalizeUser(u));
+  },
+
   async typing(channelId) {
     const ch = await resolveChannel(channelId);
     try { await ch?.sendTyping?.(); } catch { /* noop */ }

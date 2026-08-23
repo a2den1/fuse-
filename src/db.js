@@ -6,7 +6,6 @@ import { writeFileSafe } from './safeWrite.js';
 const FILE = path.join(config.dataDir, 'db.json');
 
 const empty = () => ({
-  likes: {},          // `${channelId}:${messageId}` -> [userId]
   reactionProxy: {},  // `${channelId}:${messageId}:${emojiKey}` -> [userId]  (봇이 대신 누른 리액션의 실주체)
   follows: {},        // userId -> [guildId]  (피드에 고정할 서버)
   settings: {},       // userId -> { theme, density, ... }

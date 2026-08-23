@@ -6,7 +6,7 @@ import { config } from './config.js';
 import { db, save } from './db.js';
 import { store } from './store.js';
 import {
-  hydrate, hydrateMany, toggleLike, setReactor, reactorsOf,
+  hydrate, hydrateMany, setReactor, reactorsOf, rememberAuthorInfo, HEART,
   pushActivity, activityFor, markActivityRead, unreadCount,
   settingsFor, updateSettings,
 } from './hydrate.js';
@@ -400,6 +400,12 @@ export async function deletePost(session, channelId, messageId) {
 
 /* =========================== 좋아요 / 리액션 =========================== */
 
+/*
+ * 하트 = ❤️ 리액션.
+ *
+ * 버튼 하나가 두 가지 일을 하지 않도록, 좋아요는 리액션과 같은 길을 탄다.
+ * 디스코드에서 ❤️ 를 눌러도 Fuse 의 하트가 켜지고, 그 반대도 된다.
+ */
 export async function like(session, channelId, messageId) {
   const post = await backend.getMessage(channelId, messageId);
   if (!post) throw Object.assign(new Error('글을 찾을 수 없습니다.'), { status: 404 });
@@ -407,7 +413,10 @@ export async function like(session, channelId, messageId) {
     throw Object.assign(new Error('권한이 없습니다.'), { status: 403 });
   }
 
-  const result = toggleLike(channelId, messageId, session.userId);
+  const liked = !reactorsOf(channelId, messageId, HEART).includes(session.userId);
+  const updated = await react(session, channelId, messageId, HEART, liked);
+  const result = { liked, count: updated?.likeCount || 0 };
+
   realtime.toChannel(channelId, 'post:like', (uid) => ({
     channelId, id: messageId, likeCount: result.count,
     liked: uid === session.userId ? result.liked : undefined,
@@ -424,6 +433,27 @@ export async function like(session, channelId, messageId) {
   return result;
 }
 
+/*
+ * 같은 리액션에 대한 요청은 한 줄로 세운다.
+ *
+ * 광클하면 요청 여러 개가 겹친다. 겹치면 둘 다 "아직 아무도 안 눌렀다" 를
+ * 보고 각자 봇 리액션을 붙이거나 떼는데, 끝나는 순서는 보장되지 않는다.
+ * 그러면 디스코드에는 없는데 Fuse 기록에는 남아 있는 상태가 되고,
+ * 그 뒤로는 눌러도 아무 일도 일어나지 않는다.
+ * 앞 작업이 끝난 뒤에 현재 상태를 다시 읽고 움직인다.
+ */
+const reactionQueue = new Map(); // `${channelId}:${messageId}:${key}` -> Promise
+
+function queueReaction(lockKey, task) {
+  const prev = reactionQueue.get(lockKey) || Promise.resolve();
+  const next = prev.then(task, task);
+  // 줄이 끝나면 지운다 — 안 그러면 메시지마다 프로미스가 쌓인다
+  reactionQueue.set(lockKey, next.catch(() => {}).finally(() => {
+    if (reactionQueue.get(lockKey) === next) reactionQueue.delete(lockKey);
+  }));
+  return next;
+}
+
 export async function react(session, channelId, messageId, key, on) {
   if (!(await backend.canView(session.userId, channelId))) {
     throw Object.assign(new Error('권한이 없습니다.'), { status: 403 });
@@ -432,19 +462,56 @@ export async function react(session, channelId, messageId, key, on) {
     throw Object.assign(new Error('올바르지 않은 이모지입니다.'), { status: 400 });
   }
 
-  const before = reactorsOf(channelId, messageId, key);
-  const others = before.filter((u) => u !== session.userId);
+  return queueReaction(`${channelId}:${messageId}:${key}`, async () => {
+    // 줄을 서서 기다린 뒤이므로 여기서 다시 읽어야 한다
+    const before = reactorsOf(channelId, messageId, key);
+    const mine = before.includes(session.userId);
+    const others = before.filter((u) => u !== session.userId);
 
-  // 봇 리액션은 "Fuse 유저가 한 명이라도 남아 있을 때"만 유지한다
-  let updated = null;
-  if (on && !before.length) updated = await backend.react(channelId, messageId, key, true);
-  if (!on && others.length === 0) updated = await backend.react(channelId, messageId, key, false);
+    let updated = null;
+    if (on && !mine && !before.length) {
+      // 봇 리액션은 "Fuse 유저가 한 명이라도 남아 있을 때"만 유지한다
+      updated = await backend.react(channelId, messageId, key, true);
+    } else if (!on && mine && others.length === 0) {
+      updated = await backend.react(channelId, messageId, key, false);
+    }
 
-  setReactor(channelId, messageId, key, session.userId, on);
+    if (mine !== on) setReactor(channelId, messageId, key, session.userId, on);
+    if (on) rememberAuthorInfo(session.user);
 
-  const post = updated || (await backend.getMessage(channelId, messageId));
-  if (post) eventHooks.postUpdated(post);
-  return post ? hydrate(post, session.userId) : null;
+    const post = updated || (await backend.getMessage(channelId, messageId));
+    if (post) eventHooks.postUpdated(post);
+    return post ? hydrate(post, session.userId) : null;
+  });
+}
+
+/**
+ * 이 리액션을 누른 사람들.
+ *
+ * 디스코드에서 직접 누른 사람은 그대로, 봇 명의로 나간 자리는
+ * 실제로 누른 Fuse 유저들로 바꿔 넣는다. 그래야 "봇이 눌렀다" 가 아니라
+ * 누가 눌렀는지가 보인다.
+ */
+export async function reactionUsers(session, channelId, messageId, key) {
+  if (!(await backend.canView(session.userId, channelId))) {
+    throw Object.assign(new Error('권한이 없습니다.'), { status: 403 });
+  }
+
+  const direct = await backend.reactionUsers(channelId, messageId, key);
+  const proxied = reactorsOf(channelId, messageId, key).map((id) => {
+    const info = db.authorInfo[id];
+    return { id, displayName: info?.displayName || '어떤 사람', avatar: info?.avatar || null, viaFuse: true };
+  });
+
+  // 같은 사람이 양쪽에 들어갈 수 있다 (디스코드에서도 누르고 Fuse 에서도 누른 경우)
+  const seen = new Set();
+  const out = [];
+  for (const u of [...proxied, ...direct]) {
+    if (!u?.id || seen.has(u.id)) continue;
+    seen.add(u.id);
+    out.push({ id: u.id, displayName: u.displayName, avatar: u.avatar || null, me: u.id === session.userId });
+  }
+  return out;
 }
 
 /* ============================== 검색 ============================== */
@@ -511,7 +578,7 @@ export async function profile(session, targetId) {
     .merge(channelIds, { filter: (p) => p.author?.id === targetId })
     .slice(0, 40);
 
-  const likeTotal = posts.reduce((sum, p) => sum + (db.likes[p.channelId + ':' + p.id]?.length || 0), 0);
+  const likeTotal = posts.reduce((sum, p) => sum + (hydrate(p, session.userId).likeCount || 0), 0);
 
   return {
     user,

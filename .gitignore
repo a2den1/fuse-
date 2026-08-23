@@ -25,3 +25,4 @@ Thumbs.db
 dist/
 build/*.png
 build-log.txt
+.demo-data/

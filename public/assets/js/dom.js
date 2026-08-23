@@ -297,20 +297,131 @@ export function autoGrow(textarea, max = 220) {
 
 /* ------------------------------ 라이트박스 ------------------------------ */
 
-export function openLightbox(src, { video = false } = {}) {
-  const box = h('div', { class: 'lightbox', role: 'dialog', 'aria-modal': 'true' });
-  const media = video
-    ? h('video', { src, controls: true, autoplay: true, playsinline: true })
-    : h('img', { src, alt: '' });
+/**
+ * 이미지 뷰어 — 여러 장이면 넘길 수 있다.
+ *
+ * @param {string|Array<{url:string, video?:boolean, name?:string}>} items
+ * @param {{index?:number, video?:boolean}} opts
+ */
+export function openLightbox(items, opts = {}) {
+  const list = (Array.isArray(items) ? items : [{ url: items, video: !!opts.video }])
+    .filter((it) => it && it.url);
+  if (!list.length) return;
+
+  let i = Math.min(Math.max(opts.index || 0, 0), list.length - 1);
+  const many = list.length > 1;
+
+  const box = h('div', { class: 'lightbox' + (many ? ' has-many' : ''), role: 'dialog', 'aria-modal': 'true' });
+  const track = h('div', { class: 'lb-track' });
+
+  for (const it of list) {
+    track.append(h('div', { class: 'lb-slide' }, it.video
+      ? h('video', { src: it.url, controls: true, playsinline: true, preload: 'metadata' })
+      : h('img', { src: it.url, alt: it.name || '', draggable: false })));
+  }
+
+  const counter = many ? h('div', { class: 'lb-counter' }) : null;
+  const dots = many ? h('div', { class: 'lb-dots' }) : null;
+  if (many) {
+    for (let n = 0; n < list.length; n += 1) {
+      dots.append(h('button', {
+        class: 'lb-dot', type: 'button', 'aria-label': (n + 1) + '번째',
+        onClick: (e) => { e.stopPropagation(); go(n); },
+      }));
+    }
+  }
+
+  /** 손가락을 따라오는 중이면 전환을 끄고, 놓으면 다시 켠다 */
+  function place(offset = 0, animate = true) {
+    track.style.transition = animate ? 'transform .34s cubic-bezier(.32,.72,0,1)' : 'none';
+    track.style.transform = `translate3d(calc(${-i * 100}% + ${offset}px), 0, 0)`;
+  }
+
+  function go(next, animate = true) {
+    i = Math.min(Math.max(next, 0), list.length - 1);
+    place(0, animate);
+    if (counter) counter.textContent = (i + 1) + ' / ' + list.length;
+    if (dots) [...dots.children].forEach((d, n) => d.classList.toggle('is-on', n === i));
+    // 넘어간 슬라이드의 영상은 멈춘다
+    track.querySelectorAll('video').forEach((v, n) => { if (n !== i) v.pause(); });
+  }
+
   const close = () => {
     box.remove();
     document.body.style.removeProperty('overflow');
     document.removeEventListener('keydown', onKey, true);
   };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  box.append(media, h('button', { class: 'lb-close', 'aria-label': '닫기', onClick: close }, icon('close')));
-  box.addEventListener('click', (e) => { if (e.target === box) close(); });
+
+  const onKey = (e) => {
+    if (e.key === 'Escape') { close(); return; }
+    if (!many) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); go(i + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); go(i - 1); }
+  };
+
+  box.append(track);
+  if (many) {
+    box.append(
+      h('button', {
+        class: 'lb-nav lb-prev', type: 'button', 'aria-label': '이전',
+        onClick: (e) => { e.stopPropagation(); go(i - 1); },
+      }, icon('left')),
+      h('button', {
+        class: 'lb-nav lb-next', type: 'button', 'aria-label': '다음',
+        onClick: (e) => { e.stopPropagation(); go(i + 1); },
+      }, icon('right')),
+      counter, dots,
+    );
+  }
+  box.append(h('button', { class: 'lb-close', 'aria-label': '닫기', onClick: close }, icon('close')));
+
+  /* 스와이프 — 손가락을 따라 움직이다가, 충분히 끌었으면 넘어간다 */
+  if (many) {
+    let startX = 0;
+    let startY = 0;
+    let dragging = false;
+    let decided = false;
+
+    track.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      dragging = true;
+      decided = false;
+    }, { passive: true });
+
+    track.addEventListener('touchmove', (e) => {
+      if (!dragging) return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      // 세로로 긋는 중이면 넘기기가 아니다 (확대·스크롤을 방해하지 않는다)
+      if (!decided) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        decided = true;
+        if (Math.abs(dy) > Math.abs(dx)) { dragging = false; return; }
+      }
+      // 양 끝에서는 덜 따라와서 끝이라는 걸 손으로 알려준다
+      const atEdge = (dx > 0 && i === 0) || (dx < 0 && i === list.length - 1);
+      place(atEdge ? dx * 0.3 : dx, false);
+    }, { passive: true });
+
+    const release = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      const dx = (e.changedTouches?.[0]?.clientX ?? startX) - startX;
+      if (Math.abs(dx) > Math.min(70, innerWidth * 0.18)) go(dx < 0 ? i + 1 : i - 1);
+      else place(0, true);
+    };
+    track.addEventListener('touchend', release, { passive: true });
+    track.addEventListener('touchcancel', release, { passive: true });
+  }
+
+  box.addEventListener('click', (e) => {
+    if (e.target === box || e.target.classList.contains('lb-slide')) close();
+  });
   document.addEventListener('keydown', onKey, true);
   document.body.append(box);
   document.body.style.overflow = 'hidden';
+  go(i, false);
 }
+

@@ -57,6 +57,10 @@ function renderMedia(post) {
     const count = Math.min(items.length, 4);
     const grid = h('div', { class: 'media media-' + count });
 
+    // 라이트박스에서 넘겨볼 목록 — 격자에 4장까지만 보여도 전부 넘길 수 있다
+    const viewable = items.filter((f) => f.url && !f.spoiler)
+      .map((f) => ({ url: f.url, name: f.description || f.name || '', video: !!f.isVideo }));
+
     items.slice(0, 4).forEach((f) => {
       const single = count === 1;
       const media = f.isVideo
@@ -83,7 +87,7 @@ function renderMedia(post) {
           e.stopPropagation();
           if (f.spoiler && !figure.classList.contains('is-open')) { figure.classList.add('is-open'); return; }
           if (f.isVideo) return;
-          openLightbox(f.url);
+          openLightbox(viewable, { index: Math.max(viewable.findIndex((v) => v.url === f.url), 0) });
         },
       }, media);
 
@@ -188,18 +192,75 @@ function openEmojiPicker(anchor, onPick) {
   }, 0);
 }
 
+/* --------------------- 누가 눌렀는지 (마우스 올리면) --------------------- */
+
+const reactorCache = new Map(); // `${channelId}:${id}:${key}` -> 이름 배열
+let hoverTip = null;
+
+function hideReactorTip() {
+  hoverTip?.remove();
+  hoverTip = null;
+}
+
+function showReactorTip(anchor, names) {
+  hideReactorTip();
+  if (!names.length) return;
+  const shown = names.slice(0, 8);
+  const rest = names.length - shown.length;
+  hoverTip = h('div', { class: 'reactor-tip' },
+    h('span', { text: shown.join(', ') + (rest > 0 ? ` 외 ${rest}명` : '') }));
+  document.body.append(hoverTip);
+
+  const box = anchor.getBoundingClientRect();
+  const tip = hoverTip.getBoundingClientRect();
+  // 화면 밖으로 나가지 않게 좌우를 접어 넣는다
+  const left = Math.min(Math.max(box.left + box.width / 2 - tip.width / 2, 8), innerWidth - tip.width - 8);
+  hoverTip.style.left = left + 'px';
+  hoverTip.style.top = Math.max(box.top - tip.height - 8, 8) + 'px';
+  hoverTip.classList.add('is-in');
+}
+
+/** 올려둔 채 잠깐 기다리면 물어본다 — 스쳐 지나갈 때마다 요청하지 않도록 */
+function attachReactorTip(el, post, key) {
+  let timer = null;
+  let over = false;
+  const lock = post.channelId + ':' + post.id + ':' + key;
+
+  const enter = () => {
+    over = true;
+    timer = setTimeout(async () => {
+      if (reactorCache.has(lock)) { showReactorTip(el, reactorCache.get(lock)); return; }
+      try {
+        const { users } = await api.reactors(post.channelId, post.id, key);
+        const names = users.map((u) => (u.me ? '나' : u.displayName));
+        reactorCache.set(lock, names);
+        // 기다리는 사이에 마우스가 떠났으면 띄우지 않는다
+        if (over) showReactorTip(el, names);
+      } catch { /* 못 가져오면 조용히 넘어간다 */ }
+    }, 320);
+  };
+  const leave = () => { over = false; clearTimeout(timer); hideReactorTip(); };
+
+  el.addEventListener('mouseenter', enter);
+  el.addEventListener('mouseleave', leave);
+  // 눌러서 숫자가 바뀌면 이름도 다시 물어봐야 한다
+  el.addEventListener('click', () => { reactorCache.delete(lock); leave(); });
+  return el;
+}
+
 function renderReactions(post) {
   const row = h('div', { class: 'reactions' });
 
   for (const r of post.reactions || []) {
-    row.append(h('button', {
+    const chip = h('button', {
       class: 'reaction' + (r.me ? ' is-mine' : ''),
       type: 'button',
       title: r.name,
       onClick: (e) => { e.stopPropagation(); toggleReaction(post, r.key, !r.me); },
     },
       r.url ? h('img', { src: r.url, alt: r.name, loading: 'lazy' }) : h('span', { class: 'r-emoji', text: r.name }),
-      h('span', { text: compact(r.count) })));
+      h('span', { text: compact(r.count) }));
+    row.append(attachReactorTip(chip, post, r.key));
   }
 
   row.append(h('button', {
@@ -215,12 +276,37 @@ function renderReactions(post) {
   return row;
 }
 
+/*
+ * 같은 리액션을 연달아 누르는 동안에는 요청을 하나만 띄운다.
+ *
+ * 광클하면 응답이 도착하는 순서가 뒤죽박죽이 되고, 마지막에 남는 화면이
+ * 실제 상태와 달라진다. 서버도 줄을 세우지만 여기서 먼저 막는 편이
+ * 손맛에 좋다 — 누르는 즉시 잠기고, 끝나면 마지막으로 원한 상태로 한 번 더 간다.
+ */
+/** 하트는 서버에서도 이 리액션이다 (src/hydrate.js 의 HEART 와 같아야 한다) */
+const HEART = '❤️';
+
+const reacting = new Map(); // `${channelId}:${id}:${key}` -> { want }
+
 async function toggleReaction(post, key, on) {
+  const lock = post.channelId + ':' + post.id + ':' + key;
+  const entry = reacting.get(lock);
+  if (entry) { entry.want = on; return; }   // 진행 중 — 마지막 의사만 기억한다
+
+  const self = { want: on };
+  reacting.set(lock, self);
   try {
-    const { post: updated } = await api.react(post.channelId, post.id, key, on);
-    if (updated) emit('post:patch', updated);
+    let sent = null;
+    // 기다리는 동안 마음이 바뀌었으면 한 번 더 보낸다
+    while (sent !== self.want) {
+      sent = self.want;
+      const { post: updated } = await api.react(post.channelId, post.id, key, sent);
+      if (updated) emit('post:patch', updated);
+    }
   } catch (err) {
     toast(err.message, { error: true });
+  } finally {
+    reacting.delete(lock);
   }
 }
 
@@ -311,6 +397,9 @@ export function renderPost(post, opts = {}) {
     type: 'button', 'aria-label': '좋아요',
     onClick: (e) => { e.stopPropagation(); doLike(post, e.currentTarget); },
   }, heart);
+  // 누른 뒤에 올려도 보여야 하므로 개수와 상관없이 붙인다
+  // (아무도 안 눌렀으면 showReactorTip 이 알아서 아무것도 안 띄운다)
+  attachReactorTip(likeBtn, post, HEART);
 
   const replyBtn = h('button', {
     class: 'act', type: 'button', 'aria-label': '답글',
@@ -390,19 +479,37 @@ function openDetail(post, el) {
 }
 
 async function doLike(post, btn) {
+  // 하트도 ❤️ 리액션이므로 같은 잠금을 쓴다 — 광클해도 요청은 하나씩
+  const lock = post.channelId + ':' + post.id + ':' + HEART;
+  const before = { liked: post.liked, count: post.likeCount || 0 };
+
   // 낙관적 업데이트 — 네트워크를 기다리지 않는다
   const next = !post.liked;
-  applyLike(post, next, next ? (post.likeCount || 0) + 1 : Math.max((post.likeCount || 0) - 1, 0));
+  applyLike(post, next, next ? before.count + 1 : Math.max(before.count - 1, 0));
   if (next) {
     btn.classList.add('just-liked');
     setTimeout(() => btn.classList.remove('just-liked'), 460);
   }
+
+  const entry = reacting.get(lock);
+  if (entry) { entry.want = next; return; }
+
+  const self = { want: next };
+  reacting.set(lock, self);
   try {
-    const res = await api.like(post.channelId, post.id);
-    applyLike(post, res.liked, res.count);
+    let sent = null;
+    while (sent !== self.want) {
+      sent = self.want;
+      const res = await api.like(post.channelId, post.id);
+      // 서버가 토글이므로 원하는 상태와 어긋나면 한 번 더 돈다
+      applyLike(post, res.liked, res.count);
+      if (res.liked === self.want) break;
+    }
   } catch (err) {
-    applyLike(post, !next, post.likeCount);
+    applyLike(post, before.liked, before.count);
     toast(err.message, { error: true });
+  } finally {
+    reacting.delete(lock);
   }
 }
 

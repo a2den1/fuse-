@@ -6,6 +6,7 @@
 import { store, dateToSnowflake } from '../store.js';
 import { db, save } from '../db.js';
 import { imageSize } from './imageSize.js';
+import { HEART } from '../hydrate.js';
 
 const now = Date.now();
 const MIN = 60_000;
@@ -325,11 +326,16 @@ function seedAll() {
     parent.threadReplyCount = store.list(threadId).length;
   }
 
-  // 데모 좋아요 몇 개 — 숫자가 0만 있으면 UI 확인이 안 된다
+  // 데모 하트 몇 개 — 숫자가 0만 있으면 UI 확인이 안 된다.
+  // 하트는 ❤️ 리액션이므로 글의 리액션 목록에 직접 심는다.
   const likeTargets = [[0, ['101', '104', '107']], [2, ['100', '101', '102', '105', '108']], [14, ['101', '103', '106']], [18, ['100', '107']]];
   for (const [idx, likers] of likeTargets) {
     const p = seededPosts[idx];
-    if (p) db.likes[p.channelId + ':' + p.id] = likers;
+    if (!p) continue;
+    p.reactions = [...(p.reactions || []), {
+      key: HEART, name: HEART, url: null, count: likers.length, botReacted: true,
+    }];
+    db.reactionProxy[`${p.channelId}:${p.id}:${HEART}`] = likers;
   }
   save();
 
@@ -483,6 +489,13 @@ export const backend = {
     }
     post.reactions = list;
     return post;
+  },
+
+  async reactionUsers(channelId, messageId, key) {
+    const post = store.get(channelId, messageId);
+    const found = post?.reactions?.find((r) => r.key === key);
+    if (!found || found.botReacted) return [];   // 데모의 리액션은 전부 봇 명의다
+    return [];
   },
 
   async typing() { /* 데모에서는 무의미 */ },

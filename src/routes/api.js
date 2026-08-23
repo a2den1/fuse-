@@ -101,6 +101,14 @@ router.post('/post/:channelId/:messageId/react', wrap(async (req, res) => {
   res.json({ post });
 }));
 
+// 누가 눌렀는지 — 칩에 마우스를 올렸을 때만 물어본다
+router.get('/post/:channelId/:messageId/reactors', wrap(async (req, res) => {
+  const users = await svc.reactionUsers(
+    req.session, req.params.channelId, req.params.messageId, String(req.query.emoji || ''),
+  );
+  res.json({ users });
+}));
+
 /* ------------------------------- 탐색 ------------------------------- */
 
 router.get('/search', wrap(async (req, res) => {

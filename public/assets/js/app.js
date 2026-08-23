@@ -471,7 +471,11 @@ document.addEventListener('click', (e) => {
 
 /* 단축키 */
 document.addEventListener('keydown', (e) => {
-  if (e.target.matches('input, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+  // 이벤트 대상이 늘 요소인 건 아니다 (document 로 올 때도 있다)
+  if (e.target instanceof Element && e.target.matches('input, textarea, [contenteditable]')) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  // 사진 뷰어나 시트가 떠 있으면 그 화면의 키를 뺏지 않는다
+  if (document.querySelector('.lightbox, .overlay')) return;
   if (e.key === 'n') { e.preventDefault(); openComposer(); }
   if (e.key === '/') { e.preventDefault(); nav.go('/search'); }
   if (e.key === 'g') { e.preventDefault(); nav.go('/'); }

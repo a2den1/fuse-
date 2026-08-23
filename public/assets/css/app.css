@@ -18,6 +18,8 @@
   --bg: #ffffff;           /* 카드 */
   --bg-soft: #f2f2f6;      /* 카드 위 한 겹 더 */
   --bg-hover: rgba(0, 0, 0, 0.045);
+  --tip-bg: #1c1c20;
+  --tip-text: #f4f4f6;
   --bg-press: rgba(0, 0, 0, 0.08);
   --glass: rgba(255, 255, 255, 0.62);
   --glass-pill: rgba(255, 255, 255, 0.66);
@@ -67,6 +69,8 @@
   --bg: #0e0e10;
   --bg-soft: #1a1a1e;
   --bg-hover: rgba(255, 255, 255, 0.07);
+  --tip-bg: #f2f2f6;
+  --tip-text: #101013;
   --bg-press: rgba(255, 255, 255, 0.12);
   --glass: rgba(30, 30, 34, 0.6);
   --glass-pill: rgba(255, 255, 255, 0.14);
@@ -1648,9 +1652,75 @@ button.setting-row:hover, .setting-row:has(.switch):hover { background: color-mi
   display: grid;
   place-items: center;
   padding: 24px;
+  /* 옆 슬라이드가 가장자리로 삐져나오지 않게 */
+  overflow: hidden;
   animation: fade 0.24s var(--ease) both;
 }
-.lightbox img, .lightbox video { max-width: 100%; max-height: 90dvh; object-fit: contain; border-radius: 10px; animation: sheet-in 0.4s var(--spring) both; }
+/* 여러 장일 때는 한 줄로 늘어놓고 통째로 민다 */
+.lightbox .lb-track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  will-change: transform;
+}
+.lightbox .lb-slide {
+  flex: 0 0 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+}
+.lightbox img, .lightbox video {
+  max-width: 100%;
+  max-height: 90dvh;
+  object-fit: contain;
+  border-radius: 10px;
+  animation: sheet-in 0.4s var(--spring) both;
+  -webkit-user-drag: none;
+}
+/* 넘길 수 있을 때만 나오는 것들 */
+.lightbox .lb-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  display: grid; place-items: center;
+  transition: background var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.lightbox .lb-nav:hover { background: rgba(255, 255, 255, 0.24); }
+.lightbox .lb-prev { left: 18px; }
+.lightbox .lb-next { right: 18px; }
+.lightbox .lb-counter {
+  position: absolute;
+  top: 26px; left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.lightbox .lb-dots {
+  position: absolute;
+  bottom: 26px; left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 7px;
+}
+.lightbox .lb-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--spring);
+}
+.lightbox .lb-dot.is-on { background: #fff; transform: scale(1.32); }
+/* 손가락으로 넘기는 화면에서는 화살표가 자리만 차지한다 */
+@media (pointer: coarse) {
+  .lightbox .lb-nav { display: none; }
+}
 .lightbox .lb-close {
   position: absolute;
   top: 20px; right: 20px;
@@ -1851,3 +1921,112 @@ button.setting-row:hover, .setting-row:has(.switch):hover { background: color-mi
   background: color-mix(in srgb, var(--danger) 12%, transparent);
   width: 100%;
 }
+
+/* ------------------- 피드 위 인라인 작성창 (트위터식) ------------------- */
+
+.inline-composer {
+  display: flex;
+  gap: 12px;
+  padding: 13px 16px 11px;
+  /* 피드 카드와 같은 재질 — 이것도 카드다 */
+  background: var(--bg);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-1);
+  margin-bottom: 8px;
+}
+.inline-composer .avatar { flex: none; }
+.ic-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.ic-text {
+  width: 100%;
+  resize: none;
+  background: transparent;
+  font-size: 17px;
+  line-height: 1.4;
+  padding: 7px 0 2px;
+  min-height: 34px;
+  max-height: 40dvh;
+  overflow-y: auto;
+  transition: font-size var(--dur) var(--ease);
+}
+.ic-text::placeholder { color: var(--text-3); }
+
+.ic-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: -7px;
+}
+.ic-spacer { flex: 1; }
+
+/* 어디로 가는 글인지 — 좁아지면 이름부터 줄인다 */
+.ic-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 42%;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.ic-target:hover { background: var(--bg-hover); color: var(--text); }
+.ic-target span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ic-target img { width: 17px; height: 17px; border-radius: 6px; flex: none; }
+.ic-target .ic { width: 15px; height: 15px; flex: none; }
+
+.ic-post {
+  flex: none;
+  margin-left: 7px;
+  height: 32px;
+  padding: 0 15px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--shell);
+  font-size: 14px;
+  font-weight: 700;
+  transition: opacity var(--dur) var(--ease), transform var(--dur-fast) var(--spring);
+}
+.ic-post:hover:not(:disabled) { opacity: 0.86; }
+.ic-post:active:not(:disabled) { transform: scale(0.94); }
+.ic-post:disabled { opacity: 0.34; }
+
+/* 쓰기 시작하면 자리를 내어 준다 */
+.inline-composer.is-focused .ic-text,
+.inline-composer.is-open .ic-text { font-size: 19px; min-height: 58px; }
+
+/* 채널 고르기 시트 */
+.picker-sheet {
+  width: min(460px, calc(100vw - 32px));
+  max-height: min(70dvh, 560px);
+  overflow-y: auto;
+  border-radius: 22px;
+  background: var(--bg);
+  padding: 6px;
+}
+
+/* 누가 눌렀는지 — 리액션 칩·하트에 마우스를 올렸을 때 */
+.reactor-tip {
+  position: fixed;
+  z-index: 90;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 7px 11px;
+  border-radius: 11px;
+  background: var(--tip-bg);
+  color: var(--tip-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 0.16s var(--ease), transform 0.22s var(--spring);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28);
+}
+.reactor-tip.is-in { opacity: 1; transform: translateY(0); }
+/* 손가락으로 쓰는 화면에는 hover 가 없다 */
+@media (pointer: coarse) { .reactor-tip { display: none; } }

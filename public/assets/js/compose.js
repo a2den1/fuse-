@@ -1,6 +1,6 @@
 /* 글쓰기 — 모달이 아니라 하나의 화면이다 (/compose) */
 
-import { h, icon, toast, autoGrow, clear } from './dom.js';
+import { h, icon, toast, autoGrow, clear, openOverlay } from './dom.js';
 import { api } from './api.js';
 import { state, nav, emit, on } from './state.js';
 import { plainText } from './markdown.js';
@@ -427,4 +427,175 @@ function insertEmojiPicker(anchor, onPick) {
 export function wireComposeEvents() {
   on('compose:quote', (post) => openComposer({ mode: 'quote', quote: post, channel: channelOf(post) }));
   on('compose:edit', (post) => openComposer({ mode: 'edit', post }));
+}
+
+/* ---------------------- 피드 위 인라인 작성창 ---------------------- */
+
+/**
+ * 트위터처럼 타임라인 맨 위에서 바로 쓴다.
+ *
+ * 한 줄짜리로 앉아 있다가 글자가 들어오면 자라난다.
+ * 어디에 올릴지는 늘 보이게 둔다 — 디스코드는 채널이 있어서
+ * "어디로 가는 글인지" 를 모르면 올리기가 무섭다.
+ */
+export function inlineComposer() {
+  let target = loadLast();
+  const files = [];
+
+  const textarea = h('textarea', {
+    class: 'ic-text',
+    placeholder: '무슨 일이 일어나고 있나요?',
+    maxlength: '2000',
+    rows: '1',
+    'aria-label': '새 글',
+  });
+  const mentions = attachMentions(textarea, () => target?.guild?.id || null);
+
+  const postBtn = h('button', { class: 'ic-post', type: 'button', text: '게시하기', disabled: true });
+  const targetBtn = h('button', { class: 'ic-target', type: 'button' });
+  const attachGrid = h('div', { class: 'attach-grid', hidden: true });
+
+  const fileInput = h('input', {
+    type: 'file', accept: 'image/*,video/*,audio/*,.pdf,.txt,.zip', multiple: true,
+    style: { display: 'none' },
+    onChange: (e) => {
+      for (const f of e.target.files) {
+        if (files.length >= 4) { toast('파일은 4개까지 올릴 수 있습니다.', { error: true }); break; }
+        if (f.size > 8 * 1024 * 1024) { toast(f.name + ' 은 8MB를 넘습니다.', { error: true }); continue; }
+        files.push(f);
+      }
+      e.target.value = '';
+      renderAttachments();
+      validate();
+    },
+  });
+
+  function renderAttachments() {
+    clear(attachGrid);
+    files.forEach((file, i) => {
+      const item = h('div', { class: 'attach-item' });
+      if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file);
+        item.append(h('img', { src: url, alt: file.name, onLoad: () => URL.revokeObjectURL(url) }));
+      } else {
+        item.append(h('div', { class: 'file-chip' },
+          icon(file.type.startsWith('video/') ? 'film' : 'file'),
+          h('span', { text: file.name })));
+      }
+      item.append(h('button', {
+        class: 'attach-remove', type: 'button', 'aria-label': '첨부 제거',
+        onClick: () => { files.splice(i, 1); renderAttachments(); validate(); },
+      }, icon('close')));
+      attachGrid.append(item);
+    });
+    attachGrid.hidden = !files.length;
+  }
+
+  function syncTarget() {
+    clear(targetBtn);
+    if (target) {
+      targetBtn.title = (target.guild?.name ? target.guild.name + ' · ' : '') + '#' + (target.name || '');
+      targetBtn.append(
+        target.guild?.icon ? h('img', { src: target.guild.icon, alt: '' }) : icon('hash'),
+        h('span', { text: target.name || '채널' }),
+      );
+    } else {
+      targetBtn.title = '올릴 채널 고르기';
+      targetBtn.append(icon('hash'), h('span', { text: '채널 고르기' }));
+    }
+  }
+
+  targetBtn.addEventListener('click', () => {
+    openOverlay((close) => {
+      const box = h('div', { class: 'picker-sheet' });
+      box.append(pickerPanel({
+        current: target,
+        onPick: (ch) => { target = ch; saveLast(ch); syncTarget(); validate(); close(); },
+      }));
+      return box;
+    });
+  });
+
+  function validate() {
+    const len = textarea.value.trim().length;
+    postBtn.disabled = !(target && (len > 0 || files.length)) || !!postBtn.dataset.busy;
+    wrap.classList.toggle('is-open', len > 0 || files.length > 0);
+  }
+
+  textarea.addEventListener('input', validate);
+  textarea.addEventListener('focus', () => wrap.classList.add('is-focused'));
+  textarea.addEventListener('blur', () => {
+    if (!textarea.value.trim() && !files.length) wrap.classList.remove('is-focused');
+  });
+  textarea.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); submit(); }
+  });
+
+  async function submit() {
+    if (postBtn.disabled) return;
+    postBtn.dataset.busy = '1';
+    postBtn.disabled = true;
+    postBtn.textContent = '올리는 중…';
+
+    const form = new FormData();
+    form.set('channelId', target.id);
+    form.set('content', mentions.resolve(textarea.value.trim()));
+    for (const f of files) form.append('files', f);
+
+    try {
+      const { post } = await api.createPost(form);
+      emit('post:created', post);
+      textarea.value = '';
+      files.length = 0;
+      renderAttachments();
+      autoGrow(textarea, 260);
+      wrap.classList.remove('is-open', 'is-focused');
+      textarea.blur();
+    } catch (err) {
+      toast(err.message, { error: true });
+    } finally {
+      delete postBtn.dataset.busy;
+      postBtn.textContent = '게시하기';
+      validate();
+    }
+  }
+  postBtn.addEventListener('click', submit);
+
+  const wrap = h('div', { class: 'inline-composer' },
+    h('img', { class: 'avatar avatar-36', src: state.me?.avatar || '', alt: '' }),
+    h('div', { class: 'ic-main' },
+      textarea,
+      attachGrid,
+      h('div', { class: 'ic-tools' },
+        h('button', {
+          class: 'tool', type: 'button', 'aria-label': '사진·동영상',
+          onClick: () => fileInput.click(),
+        }, icon('image')),
+        h('button', {
+          class: 'tool', type: 'button', 'aria-label': '이모지',
+          onClick: (e) => insertEmojiPicker(e.currentTarget, (emoji) => {
+            const start = textarea.selectionStart;
+            textarea.value = textarea.value.slice(0, start) + emoji + textarea.value.slice(textarea.selectionEnd);
+            textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+            textarea.focus();
+            validate();
+          }),
+        }, icon('emoji')),
+        h('div', { class: 'ic-spacer' }),
+        targetBtn,
+        postBtn)),
+    fileInput);
+
+  // 아바타는 로그인 정보가 늦게 올 수도 있다
+  const offMe = on('me', () => {
+    const img = wrap.querySelector('.avatar');
+    if (img && state.me?.avatar) img.src = state.me.avatar;
+    if (!target) { target = loadLast(); syncTarget(); validate(); }
+  });
+  wrap._cleanup = () => offMe();
+
+  syncTarget();
+  autoGrow(textarea, 260);
+  validate();
+  return wrap;
 }
