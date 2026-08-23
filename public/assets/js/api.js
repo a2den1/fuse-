@@ -74,6 +74,9 @@ export const api = {
     request('/post/' + channelId + '/' + messageId + '/react', { method: 'POST', body: { emoji, on } }),
   reactors: (channelId, messageId, emoji) =>
     request('/post/' + channelId + '/' + messageId + '/reactors' + qs({ emoji })),
+  bookmark: (channelId, messageId) =>
+    request('/post/' + channelId + '/' + messageId + '/bookmark', { method: 'POST' }),
+  bookmarks: () => request('/bookmarks'),
 
   search: (q) => request('/search' + qs({ q })),
   discover: () => request('/discover'),

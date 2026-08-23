@@ -36,6 +36,7 @@ const ROUTES = [
   [/^\/search$/, () => views.searchView(new URLSearchParams(location.search).get('q') || '')],
   [/^\/activity$/, () => views.activityView()],
   [/^\/discover$/, () => views.discoverView()],
+  [/^\/bookmarks$/, () => views.bookmarksView()],
   [/^\/settings$/, () => views.settingsView()],
   [/^\/dm$/, () => views.dmListView()],
   [/^\/dm\/([^/]+)$/, (m) => views.dmView(m[1])],
@@ -374,6 +375,7 @@ function buildRail() {
       const anchor = e.currentTarget;
       const { openMenu } = await import('./dom.js');
       openMenu(anchor, [
+        { icon: 'bookmark', label: '북마크', onSelect: () => nav.go('/bookmarks') },
         { icon: 'compass', label: '서버 둘러보기', onSelect: () => nav.go('/discover') },
         '-',
         { icon: 'logout', label: '로그아웃', danger: true,

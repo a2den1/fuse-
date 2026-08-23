@@ -16,6 +16,7 @@ const empty = () => ({
   profiles: {},       // userId -> { bio, links } (Fuse 자체 프로필)
   authors: {},        // `${channelId}:${messageId}` -> userId (봇/웹훅이 대신 보낸 글의 진짜 작성자)
   authorInfo: {},     // userId -> { displayName, avatar } (봇 명의로 나간 글을 Fuse에서 제대로 보여주기 위한 스냅샷)
+  bookmarks: {},      // userId -> [{ channelId, messageId, at }]  (나중에 다시 볼 글)
 });
 
 let state = empty();

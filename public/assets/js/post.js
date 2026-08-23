@@ -415,12 +415,18 @@ export function renderPost(post, opts = {}) {
     onClick: (e) => { e.stopPropagation(); emit('compose:quote', post); },
   }, icon('repost'));
 
+  const bookmarkBtn = h('button', {
+    class: 'act act-bookmark' + (post.bookmarked ? ' is-on' : ''),
+    type: 'button', 'aria-label': '북마크',
+    onClick: (e) => { e.stopPropagation(); doBookmark(post, e.currentTarget); },
+  }, icon('bookmark', post.bookmarked ? 'is-filled' : ''));
+
   const shareBtn = h('button', {
     class: 'act', type: 'button', 'aria-label': '공유',
     onClick: (e) => { e.stopPropagation(); sharePost(post, e.currentTarget); },
   }, icon('share'));
 
-  body.append(h('div', { class: 'post-actions' }, likeBtn, replyBtn, quoteBtn, shareBtn));
+  body.append(h('div', { class: 'post-actions' }, likeBtn, replyBtn, quoteBtn, bookmarkBtn, shareBtn));
   body.append(buildMetaCounts(post));
 
   const article = h('article', {
@@ -524,6 +530,44 @@ function applyLike(post, liked, count) {
     btn.querySelector('.ic')?.classList.toggle('is-filled', liked);
     if (el._post) { el._post.liked = liked; el._post.likeCount = count; }
     refreshMetaCounts(el, el._post || post);
+  });
+}
+
+/* 북마크는 조용한 동작이다 — 남에게 보이지도, 디스코드로 나가지도 않는다 */
+const bookmarking = new Set();
+
+async function doBookmark(post, btn) {
+  const lock = post.channelId + ':' + post.id;
+  if (bookmarking.has(lock)) return;
+  bookmarking.add(lock);
+
+  const next = !post.bookmarked;
+  applyBookmark(post, next);
+  if (next) {
+    btn.classList.add('just-saved');
+    setTimeout(() => btn.classList.remove('just-saved'), 460);
+  }
+  try {
+    const res = await api.bookmark(post.channelId, post.id);
+    applyBookmark(post, res.saved);
+    toast(res.saved ? '북마크에 담았습니다.' : '북마크에서 뺐습니다.');
+    emit('bookmarks:changed', { channelId: post.channelId, id: post.id, saved: res.saved });
+  } catch (err) {
+    applyBookmark(post, !next);
+    toast(err.message, { error: true });
+  } finally {
+    bookmarking.delete(lock);
+  }
+}
+
+function applyBookmark(post, saved) {
+  post.bookmarked = saved;
+  forEachPostEl(postKey(post), (el) => {
+    const btn = el.querySelector('.act-bookmark');
+    if (!btn) return;
+    btn.classList.toggle('is-on', saved);
+    btn.querySelector('.ic')?.classList.toggle('is-filled', saved);
+    if (el._post) el._post.bookmarked = saved;
   });
 }
 

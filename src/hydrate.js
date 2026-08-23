@@ -12,6 +12,31 @@ const rk = (channelId, messageId, key) => `${channelId}:${messageId}:${key}`;
  */
 export const HEART = '❤️';
 
+/* ------------------------------ 북마크 ------------------------------ */
+
+const bk = (channelId, messageId) => `${channelId}:${messageId}`;
+
+export function bookmarksOf(userId) {
+  return db.bookmarks[userId] || [];
+}
+
+export function isBookmarked(userId, channelId, messageId) {
+  const key = bk(channelId, messageId);
+  return (db.bookmarks[userId] || []).some((b) => bk(b.channelId, b.messageId) === key);
+}
+
+/** 누르면 담기고 다시 누르면 빠진다. 최근에 담은 것이 앞이다. */
+export function toggleBookmark(userId, channelId, messageId) {
+  const key = bk(channelId, messageId);
+  const list = (db.bookmarks[userId] || []).filter((b) => bk(b.channelId, b.messageId) !== key);
+  const saved = list.length === (db.bookmarks[userId] || []).length;
+  if (saved) list.unshift({ channelId, messageId, at: Date.now() });
+  if (list.length) db.bookmarks[userId] = list;
+  else delete db.bookmarks[userId];
+  save();
+  return { saved, count: list.length };
+}
+
 /** 리액션 누른 사람 이름을 나중에 보여주려면 누구인지 기억해 둬야 한다 */
 export function rememberAuthorInfo(user) {
   if (!user?.id) return;
@@ -66,6 +91,7 @@ export function hydrate(post, viewerId, { canManage = false } = {}) {
     reactions,
     likeCount: heart?.count || 0,
     liked: !!heart?.me,
+    bookmarked: isBookmarked(viewerId, post.channelId, post.id),
     mine,
     mentionedMe,
     // 웹훅으로 대신 보낸 글만 수정/삭제할 수 있다 (진짜 디스코드 유저의 글은 손댈 수 없음)

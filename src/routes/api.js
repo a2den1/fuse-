@@ -109,6 +109,16 @@ router.get('/post/:channelId/:messageId/reactors', wrap(async (req, res) => {
   res.json({ users });
 }));
 
+/* ------------------------------ 북마크 ------------------------------ */
+
+router.post('/post/:channelId/:messageId/bookmark', wrap(async (req, res) => {
+  res.json(await svc.bookmark(req.session, req.params.channelId, req.params.messageId));
+}));
+
+router.get('/bookmarks', wrap(async (req, res) => {
+  res.json(await svc.bookmarks(req.session));
+}));
+
 /* ------------------------------- 탐색 ------------------------------- */
 
 router.get('/search', wrap(async (req, res) => {

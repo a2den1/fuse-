@@ -34,6 +34,7 @@ const ICONS = {
 
   // 글 액션
   heart: 'Heart',
+  bookmark: 'Bookmark',
   comment: 'MessageCircle',
   repost: 'Repeat2',
   share: 'Send',

@@ -1095,3 +1095,53 @@ export function settingsView() {
 }
 
 export { topbar, view, emptyState, errorState, makeTabs };
+
+/* ----------------------------- 북마크 ----------------------------- */
+
+/**
+ * 담아둔 글을 모아 본다.
+ *
+ * 좋아요와 달리 남에게 보이지 않는다 — 그래서 서버별로 나누지 않고
+ * 담은 순서대로만 쌓는다. 나중에 다시 볼 것들이라 최근 것이 위다.
+ */
+export function bookmarksView() {
+  const wrap = h('div');
+  const el = view(topbar({ title: '북마크', back: true }), wrap);
+
+  async function load() {
+    clear(wrap);
+    wrap.append(skeletonFeed(3));
+    try {
+      const { posts } = await api.bookmarks();
+      clear(wrap);
+      if (!posts.length) {
+        wrap.append(emptyState('bookmark', '아직 담아둔 글이 없습니다',
+          '글의 북마크 아이콘을 누르면 여기에 모입니다. 나만 볼 수 있습니다.'));
+        return;
+      }
+      wrap.append(renderFeedList(posts));
+    } catch (err) {
+      clear(wrap);
+      wrap.append(errorState(err.message, load));
+    }
+  }
+
+  load();
+
+  // 이 화면에서 북마크를 빼면 그 카드는 자리에서 사라져야 한다
+  const off = on('bookmarks:changed', ({ channelId, id, saved }) => {
+    if (saved) return;
+    const card = wrap.querySelector('[data-post="' + id + '"]');
+    if (!card) return;
+    card.style.transition = 'opacity .2s, transform .2s';
+    card.style.opacity = '0';
+    card.style.transform = 'scale(.98)';
+    setTimeout(() => {
+      card.remove();
+      if (!wrap.querySelector('.post')) load();
+    }, 200);
+  });
+
+  el._cleanup = () => off();
+  return el;
+}

@@ -7,6 +7,7 @@ import { db, save } from './db.js';
 import { store } from './store.js';
 import {
   hydrate, hydrateMany, setReactor, reactorsOf, rememberAuthorInfo, HEART,
+  toggleBookmark, bookmarksOf,
   pushActivity, activityFor, markActivityRead, unreadCount,
   settingsFor, updateSettings,
 } from './hydrate.js';
@@ -512,6 +513,44 @@ export async function reactionUsers(session, channelId, messageId, key) {
     out.push({ id: u.id, displayName: u.displayName, avatar: u.avatar || null, me: u.id === session.userId });
   }
   return out;
+}
+
+/* ============================== 북마크 ============================== */
+
+/*
+ * 나중에 다시 볼 글.
+ *
+ * 좋아요와 달리 남에게 보이지 않고 디스코드로도 나가지 않는다.
+ * 그래서 리액션이 아니라 Fuse 안에만 둔다 — 조용히 담아두는 게 요점이다.
+ */
+export async function bookmark(session, channelId, messageId) {
+  if (!(await backend.canView(session.userId, channelId))) {
+    throw Object.assign(new Error('권한이 없습니다.'), { status: 403 });
+  }
+  const post = await backend.getMessage(channelId, messageId);
+  if (!post) throw Object.assign(new Error('글을 찾을 수 없습니다.'), { status: 404 });
+  return toggleBookmark(session.userId, channelId, messageId);
+}
+
+export async function bookmarks(session, { limit = 50 } = {}) {
+  const saved = bookmarksOf(session.userId);
+  const posts = [];
+
+  for (const b of saved.slice(0, limit)) {
+    /*
+     * 못 여는 것은 건너뛰기만 하고 지우지는 않는다.
+     *
+     * 글이 진짜 지워진 것인지, 잠깐 네트워크가 끊긴 것인지,
+     * 권한을 잠시 잃은 것인지 여기서는 구분할 수 없다.
+     * 담아둔 것을 대신 지워주는 쪽이 훨씬 나쁘다.
+     */
+    if (!(await backend.canView(session.userId, b.channelId))) continue;
+    const post = await backend.getMessage(b.channelId, b.messageId);
+    if (!post) continue;
+    posts.push({ ...hydrate(post, session.userId), bookmarkedAt: b.at });
+  }
+
+  return { posts };
 }
 
 /* ============================== 검색 ============================== */
