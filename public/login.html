@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko" data-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Fuse 로그인</title>
+
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://fastly.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="/assets/css/app.css">
+<!-- 백엔드 주소 (프런트만 따로 배포한 경우 배포 시 다시 쓰임) -->
+<script src="/fuse-config.js"></script>
+
+<script>
+  try {
+    var saved = localStorage.getItem('fuse:theme') || 'system';
+    document.documentElement.dataset.theme = saved;
+    if (saved === 'system' && matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.classList.add('is-dark');
+    }
+  } catch (e) {}
+</script>
+</head>
+<body>
+<main class="login">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 128 170" fill="none" aria-hidden="true">
+        <path d="M56.3463 133.03L37.5303 44.5078L97.0139 31.8642L100.496 48.2482L61.0037 56.6426L65.188 76.3278L100.829 68.752L104.299 85.0749L68.6575 92.6507L76.3372 128.781L56.3463 133.03Z" fill="currentColor"/>
+        <path d="M66.9836 130.769C70.83 148.865 13.6884 154.721 24.1579 116.869C37.3929 69.019 115.393 135.519 115.393 135.519" stroke="currentColor" stroke-width="19" fill="none"/>
+      </svg>
+    </div>
+
+    <div>
+      <h1>Fuse</h1>
+      <p style="margin-top:8px">디스코드 서버의 대화를<br>타임라인 하나로 봅니다.</p>
+    </div>
+
+    <div id="error" class="error" hidden></div>
+
+    <a class="btn-discord" href="/auth/login">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M20.317 4.369A19.79 19.79 0 0 0 15.432 3a13.9 13.9 0 0 0-.617 1.269 18.3 18.3 0 0 0-5.63 0A13 13 0 0 0 8.56 3a19.7 19.7 0 0 0-4.886 1.372C.556 9.05-.32 13.616.118 18.117a19.9 19.9 0 0 0 6.01 3.043 14.6 14.6 0 0 0 1.288-2.093 13 13 0 0 1-2.028-.976q.255-.187.498-.386a14.2 14.2 0 0 0 12.226 0q.246.213.498.386a13 13 0 0 1-2.032.978 14.4 14.4 0 0 0 1.288 2.091 19.8 19.8 0 0 0 6.014-3.043c.513-5.22-.877-9.745-3.563-13.748M8.02 15.35c-1.183 0-2.157-1.086-2.157-2.42s.955-2.421 2.157-2.421 2.176 1.096 2.156 2.42c0 1.335-.955 2.421-2.156 2.421m7.96 0c-1.183 0-2.157-1.086-2.157-2.42s.955-2.421 2.157-2.421 2.176 1.096 2.156 2.42c0 1.335-.955 2.421-2.156 2.421"/>
+      </svg>
+      <span id="cta">디스코드로 계속하기</span>
+    </a>
+
+    <div class="note" id="note">
+      Fuse는 회원님이 <b>디스코드에서 볼 수 있는 채널</b>만 보여줍니다.
+      비밀번호는 요구하지 않으며, 글은 회원님의 이름과 프로필로 게시됩니다.
+    </div>
+  </div>
+</main>
+
+<script type="module">
+  const { apiUrl, credentialsMode } = await import('/assets/js/origin.js');
+
+  const params = new URLSearchParams(location.search);
+  const error = params.get('error');
+  if (error) {
+    const box = document.getElementById('error');
+    box.textContent = error;
+    box.hidden = false;
+  }
+
+  // 로그인 시작은 백엔드로 보낸다 (프런트만 따로 올린 경우를 위해)
+  document.querySelector('.btn-discord').href = apiUrl('/auth/login');
+
+  // 데모 모드면 버튼 문구를 바꿔 오해가 없게 한다
+  try {
+    const res = await fetch(apiUrl('/auth/status'), { credentials: credentialsMode });
+    const status = await res.json();
+    if (status.authenticated) {
+      location.href = '/';
+    } else if (status.demo) {
+      document.getElementById('cta').textContent = '데모 계정으로 둘러보기';
+      document.getElementById('note').innerHTML =
+        '지금은 <b>데모 모드</b>입니다. 디스코드에 접속하지 않고 예시 데이터로 동작합니다. ' +
+        '<code>.env</code> 에 봇 토큰과 OAuth 정보를 넣고 다시 실행하면 실제 서버에 연결됩니다.';
+    }
+  } catch (e) { /* 서버가 아직 안 떴을 수 있다 */ }
+</script>
+</body>
+</html>

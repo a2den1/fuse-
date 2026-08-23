@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko" data-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="디스코드 계정으로 로그인해 스레드처럼 쓰는 커뮤니티 앱">
+<title>Fuse</title>
+
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/img/fuse-logo.svg">
+
+<link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<!-- 본문: Pretendard (눈누) / 이모지: 토스페이스 / 아이콘: Lucide 인라인 SVG -->
+<link rel="stylesheet" href="https://fastly.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/toss/tossface/dist/tossface.css">
+<link rel="stylesheet" href="/assets/css/app.css">
+<!-- 백엔드 주소 (프런트만 따로 배포한 경우 배포 시 다시 쓰임) -->
+<script src="/fuse-config.js"></script>
+
+<script>
+  // 서버 응답을 기다리는 동안 잘못된 테마가 번쩍이지 않도록 미리 적용한다
+  try {
+    var saved = localStorage.getItem('fuse:theme') || 'system';
+    var root = document.documentElement;
+    root.dataset.theme = saved;
+    if (saved === 'system' && matchMedia('(prefers-color-scheme: dark)').matches) {
+      root.classList.add('is-dark');
+    }
+  } catch (e) { /* 저장소 접근 불가 */ }
+</script>
+</head>
+<body>
+<noscript>
+  <div style="padding:40px;text-align:center;font-family:system-ui">
+    Fuse를 쓰려면 자바스크립트를 켜야 합니다.
+  </div>
+</noscript>
+<script type="module" src="/assets/js/app.js"></script>
+</body>
+</html>

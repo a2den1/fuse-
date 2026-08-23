@@ -1,0 +1,28 @@
+{
+  "name": "fuse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fuse — 스레드 스타일 UI로 쓰는 디스코드 클라이언트",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "build:icons": "node scripts/build-icons.mjs",
+    "release": "node scripts/release.mjs",
+    "release:list": "node scripts/release.mjs list"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "lucide": "^1.33.0",
+    "morphicons": "^1.7.0",
+    "multer": "^1.4.5-lts.1",
+    "ws": "^8.18.0"
+  }
+}
