@@ -20,3 +20,7 @@ Thumbs.db
 
 # 에디터/로컬 설정
 .claude/
+
+# 빌드 산출물
+dist/
+build/*.png

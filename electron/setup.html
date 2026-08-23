@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+<title>Fuse 설정</title>
+<style>
+  :root {
+    --shell: #000; --bg: #0e0e10; --bg-soft: #1a1a1e;
+    --text: #f4f4f6; --text-2: #8b8b93; --text-3: #55555d;
+    --accent: #f0913a; --danger: #e5384f;
+    --ease: cubic-bezier(0.32, 0.72, 0, 1);
+    --spring: cubic-bezier(0.34, 1.42, 0.44, 1);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--shell); color: var(--text);
+    font-family: 'Pretendard Variable', Pretendard, -apple-system, 'Malgun Gothic', system-ui, sans-serif;
+    font-size: 15px; line-height: 1.45; letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+    display: grid; place-items: center; padding: 32px 24px;
+  }
+  .card {
+    width: 100%; max-width: 460px;
+    background: var(--bg); border-radius: 28px; padding: 36px 32px 30px;
+    animation: in .5s var(--spring) both;
+  }
+  @keyframes in { from { opacity: 0; transform: translateY(14px) scale(.97); } }
+  .logo { width: 44px; height: 58px; color: var(--text); margin: 0 auto 18px; display: block; }
+  h1 { margin: 0 0 6px; font-size: 23px; font-weight: 800; letter-spacing: -.03em; text-align: center; }
+  .sub { margin: 0 0 26px; color: var(--text-2); font-size: 14px; text-align: center; line-height: 1.6; }
+  label { display: block; margin-bottom: 14px; }
+  label span { display: block; font-size: 13px; font-weight: 650; margin-bottom: 6px; color: var(--text-2); }
+  input {
+    width: 100%; height: 44px; padding: 0 14px;
+    background: var(--bg-soft); border: 0; border-radius: 13px;
+    color: var(--text); font: inherit; font-size: 14px;
+    transition: box-shadow .2s var(--ease);
+  }
+  input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+  input::placeholder { color: var(--text-3); }
+  button {
+    width: 100%; height: 48px; margin-top: 8px;
+    background: var(--text); color: #000; border: 0; border-radius: 14px;
+    font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: opacity .2s var(--ease), transform .16s var(--spring);
+  }
+  button:hover { opacity: .88; }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .4; cursor: default; transform: none; }
+  .note {
+    margin-top: 20px; padding: 15px 16px; border-radius: 15px;
+    background: var(--bg-soft); font-size: 12.5px; color: var(--text-2); line-height: 1.7;
+  }
+  .note b { color: var(--text); font-weight: 650; }
+  .note code {
+    display: block; margin-top: 7px; padding: 8px 10px; border-radius: 9px;
+    background: #000; color: var(--accent);
+    font-family: ui-monospace, Consolas, monospace; font-size: 11.5px;
+    word-break: break-all; user-select: all;
+  }
+  a { color: var(--accent); cursor: pointer; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .error {
+    margin-top: 16px; padding: 12px 15px; border-radius: 13px;
+    background: rgba(229, 56, 79, .14); color: #ff8b9c; font-size: 13.5px;
+  }
+  .error[hidden], .note[hidden] { display: none; }
+  .spin { display: inline-block; width: 15px; height: 15px; vertical-align: -2px;
+    border-radius: 50%; border: 2px solid rgba(0,0,0,.25); border-top-color: #000;
+    animation: sp .7s linear infinite; margin-right: 7px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="card">
+  <svg class="logo" viewBox="0 0 128 170" fill="none" aria-hidden="true">
+    <path d="M56.3463 133.03L37.5303 44.5078L97.0139 31.8642L100.496 48.2482L61.0037 56.6426L65.188 76.3278L100.829 68.752L104.299 85.0749L68.6575 92.6507L76.3372 128.781L56.3463 133.03Z" fill="currentColor"/>
+    <path d="M66.9836 130.769C70.83 148.865 13.6884 154.721 24.1579 116.869C37.3929 69.019 115.393 135.519 115.393 135.519" stroke="currentColor" stroke-width="19" fill="none"/>
+  </svg>
+
+  <h1>Fuse 시작하기</h1>
+  <p class="sub">디스코드 개발자 포털에서 값 세 개를 가져와 넣으면 됩니다.<br>이 컴퓨터에만 저장되고 어디로도 전송되지 않습니다.</p>
+
+  <form id="form">
+    <label>
+      <span>클라이언트 ID</span>
+      <input id="clientId" required autocomplete="off" spellcheck="false" placeholder="OAuth2 탭의 CLIENT ID">
+    </label>
+    <label>
+      <span>클라이언트 시크릿</span>
+      <input id="clientSecret" type="password" required autocomplete="off" placeholder="OAuth2 탭의 CLIENT SECRET">
+    </label>
+    <label>
+      <span>봇 토큰</span>
+      <input id="botToken" type="password" required autocomplete="off" placeholder="Bot 탭의 TOKEN">
+    </label>
+    <button id="submit" type="submit">연결하기</button>
+  </form>
+
+  <div class="error" id="error" hidden></div>
+
+  <div class="note">
+    <b>먼저 해둘 것 두 가지</b><br>
+    ① <a id="portal">개발자 포털</a> → Bot → Privileged Gateway Intents 에서
+    <b>MESSAGE CONTENT</b> 와 <b>SERVER MEMBERS</b> 를 켜세요.<br>
+    ② OAuth2 → Redirects 에 아래 주소를 그대로 추가하세요.
+    <code id="redirect">http://localhost:5195/auth/callback</code>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  $('portal').addEventListener('click', () =>
+    window.fuse.openExternal('https://discord.com/developers/applications'));
+
+  window.fuse.redirectUri().then((uri) => { $('redirect').textContent = uri; });
+
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('submit');
+    const err = $('error');
+    err.hidden = true;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>디스코드에 연결하는 중…';
+
+    const res = await window.fuse.saveCredentials({
+      clientId: $('clientId').value.trim(),
+      clientSecret: $('clientSecret').value.trim(),
+      botToken: $('botToken').value.trim(),
+    });
+
+    if (!res.ok) {
+      err.textContent = res.error || '연결하지 못했습니다.';
+      err.hidden = false;
+      btn.disabled = false;
+      btn.textContent = '다시 시도';
+    }
+  });
+</script>
+</body>
+</html>

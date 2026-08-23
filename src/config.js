@@ -69,7 +69,8 @@ export const config = {
   sessionSecret: process.env.SESSION_SECRET || 'fuse-dev-secret-change-me',
   sessionTtlMs: 1000 * 60 * 60 * 24 * 30,
 
-  dataDir: path.join(ROOT, 'data'),
+  // 데스크톱 앱으로 묶으면 프로그램 폴더가 읽기 전용이라 저장 위치를 밖으로 받는다
+  dataDir: process.env.FUSE_DATA_DIR || path.join(ROOT, 'data'),
   publicDir: path.join(ROOT, 'public'),
 
   // 피드 백필 튜닝
