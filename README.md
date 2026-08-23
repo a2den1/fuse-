@@ -11,6 +11,12 @@ Fuse에서 단 답글은 디스코드 앱에서도 **스레드**로 보입니다
 
 ---
 
+| | |
+|---|---|
+| 설치와 봇 연동 | [SETUP.md](SETUP.md) |
+| 배포 (Vercel 포함) | [DEPLOY.md](DEPLOY.md) |
+| 변경 이력·버전 | [CHANGELOG.md](CHANGELOG.md) |
+
 ## 바로 실행해보기
 
 ```bash
