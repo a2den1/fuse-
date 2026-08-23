@@ -248,6 +248,7 @@ const NAV_ITEMS = [
 ];
 
 const navGroups = []; // { buttons, pill } — 레일과 탭바 두 벌
+const railLinks = []; // 레일 아래쪽 바로가기 (쪽지·설정)
 
 const targetOf = (item) => (item.path === 'profile' ? '/u/' + state.me?.id : item.path);
 
@@ -296,6 +297,12 @@ function placePill(group, btn) {
 }
 
 function syncNav(pathname) {
+  for (const btn of railLinks) {
+    const active = !!btn._path && pathname.startsWith(btn._path);
+    btn.classList.toggle('is-active', active);
+    btn.querySelector('.ic')?.classList.toggle('is-filled', active);
+  }
+
   for (const group of navGroups) {
     let activeBtn = null;
     for (const btn of group.buttons) {
@@ -338,25 +345,39 @@ function buildRail() {
     onClick: (e) => { e.preventDefault(); nav.go('/'); },
   }, logoSvg());
 
+  // 쪽지와 설정은 메뉴 안에 숨기지 않는다 — 자주 쓰는 곳이라 바로 보여야 한다
+  const railLink = (iconName, label, path) => {
+    const btn = h('button', {
+      class: 'nav-btn rail-link', type: 'button', 'aria-label': label, title: label,
+      onClick: () => nav.go(path),
+    }, h('span', { class: 'nav-ico' }, icon(iconName)));
+    btn._path = path;
+    railLinks.push(btn);
+    return btn;
+  };
+
   const moreBtn = h('button', {
-    class: 'nav-btn', type: 'button', 'aria-label': '더보기', title: '더보기',
+    class: 'nav-btn rail-link', type: 'button', 'aria-label': '더보기', title: '더보기',
     onClick: async (e) => {
+      // currentTarget 은 이벤트 처리가 끝나면 null 이 된다. await 하기 전에 붙잡아 둔다.
+      const anchor = e.currentTarget;
       const { openMenu } = await import('./dom.js');
-      openMenu(e.currentTarget, [
-        { icon: 'mail', label: '쪽지', onSelect: () => nav.go('/dm') },
+      openMenu(anchor, [
         { icon: 'compass', label: '서버 둘러보기', onSelect: () => nav.go('/discover') },
-        { icon: 'settings', label: '설정', onSelect: () => nav.go('/settings') },
         '-',
         { icon: 'logout', label: '로그아웃', danger: true,
           onSelect: async () => { await api.logout(); location.href = '/login.html'; } },
       ]);
     },
-  }, icon('menu'));
+  }, h('span', { class: 'nav-ico' }, icon('menu')));
 
   return h('div', { class: 'rail' },
     logo,
     makeNavGroup('rail-nav'),
-    h('div', { class: 'rail-foot' }, moreBtn));
+    h('div', { class: 'rail-foot' },
+      railLink('mail', '쪽지', '/dm'),
+      railLink('settings', '설정', '/settings'),
+      moreBtn));
 }
 
 function buildMobileBar() {

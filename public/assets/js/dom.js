@@ -235,6 +235,11 @@ export function openOverlay(buildContent, { onClose } = {}) {
 /* ------------------------------ 메뉴 ------------------------------ */
 
 export function openMenu(anchor, items) {
+  // 붙일 기준이 없으면 메뉴를 띄우지 않는다 — 화면 구석에 떠 있는 것보다 낫다
+  if (!anchor?.getBoundingClientRect) {
+    console.warn('[menu] 기준 요소가 없어 메뉴를 열지 않았습니다.');
+    return () => {};
+  }
   document.querySelector('.menu')?.remove();
   const menu = h('div', { class: 'menu', role: 'menu' });
 

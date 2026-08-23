@@ -94,7 +94,7 @@ function createWindow(startUrl) {
     show: false,
     autoHideMenuBar: true,
     title: 'Fuse',
-    icon: path.join(APP_ROOT, 'public/assets/img/favicon.png'),
+    icon: path.join(APP_ROOT, 'public/assets/img/app-icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
