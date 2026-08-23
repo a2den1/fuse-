@@ -126,14 +126,9 @@ function notifyForPost(post) {
 
 /* ============================== 세션 ============================== */
 
-/** 세션에 캐시된 "이 유저가 속한 길드 ID" 집합 (OAuth guilds 스코프 결과) */
-function userGuildIdSet(session) {
-  if (!session.guildIds) return null;
-  return new Set(session.guildIds);
-}
 
 export async function guildsFor(session) {
-  const guilds = await backend.guildsFor(session.userId, userGuildIdSet(session));
+  const guilds = await backend.guildsFor(session.userId);
   const pinned = new Set(db.follows[session.userId] || []);
   return guilds.map((g) => ({ ...g, pinned: pinned.has(g.id) }));
 }
@@ -153,7 +148,7 @@ export async function me(session) {
 /* ============================== 피드 ============================== */
 
 async function feedChannelIds(session, { guildId = null } = {}) {
-  const guilds = await backend.guildsFor(session.userId, userGuildIdSet(session));
+  const guilds = await backend.guildsFor(session.userId);
   const targets = guildId ? guilds.filter((g) => g.id === guildId) : guilds;
   const ids = [];
   for (const g of targets) {
@@ -458,7 +453,7 @@ export async function search(session, query, { limit = 30 } = {}) {
   const q = (query || '').trim().toLowerCase();
   if (!q) return { posts: [], users: [], guilds: [], channels: [] };
 
-  const guilds = await backend.guildsFor(session.userId, userGuildIdSet(session));
+  const guilds = await backend.guildsFor(session.userId);
   const channelIds = [];
   const channelHits = [];
   for (const g of guilds) {
@@ -492,7 +487,7 @@ export async function search(session, query, { limit = 30 } = {}) {
 /* ============================== 프로필 ============================== */
 
 export async function profile(session, targetId) {
-  const guilds = await backend.guildsFor(session.userId, userGuildIdSet(session));
+  const guilds = await backend.guildsFor(session.userId);
   const channelIds = [];
   const shared = [];
   for (const g of guilds) {
@@ -539,7 +534,7 @@ export function updateProfile(session, { bio }) {
 /* ============================== 서버 ============================== */
 
 export async function guildDetail(session, guildId) {
-  const guilds = await backend.guildsFor(session.userId, userGuildIdSet(session));
+  const guilds = await backend.guildsFor(session.userId);
   const guild = guilds.find((g) => g.id === guildId);
   if (!guild) throw Object.assign(new Error('서버를 찾을 수 없거나 접근할 수 없습니다.'), { status: 404 });
   const [channels, members] = await Promise.all([
@@ -551,7 +546,7 @@ export async function guildDetail(session, guildId) {
 
 /** 봇은 들어가 있지만 이 유저는 아직 가입하지 않은 서버 */
 export async function discover(session) {
-  return backend.discover(session.userId, userGuildIdSet(session));
+  return backend.discover(session.userId);
 }
 
 export async function joinGuild(session, guildId) {
@@ -559,7 +554,6 @@ export async function joinGuild(session, guildId) {
     throw Object.assign(new Error('다시 로그인한 뒤 시도해 주세요.'), { status: 401 });
   }
   const result = await backend.joinGuild(guildId, session.userId, session.accessToken);
-  if (session.guildIds) session.guildIds = [...new Set([...session.guildIds, guildId])];
   return result;
 }
 

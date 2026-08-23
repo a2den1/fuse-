@@ -55,12 +55,20 @@ export const backend = {
     return client.user ? normalizeUser(client.user) : null;
   },
 
-  /** 봇이 들어가 있는 길드 중, 이 유저도 멤버인 것 */
-  async guildsFor(userId, userGuildIds) {
+  /*
+   * 봇이 들어가 있는 길드 중, 이 유저도 멤버인 것.
+   *
+   * 소속 여부는 fetchMember 로 그때그때 확인한다.
+   * 예전에는 로그인할 때 OAuth 로 받아둔 길드 목록으로 먼저 걸렀는데,
+   * 그러면 로그인한 뒤에 새로 들어간 서버가 영영 보이지 않았다.
+   * (실시간 메시지는 canView 로 따로 검사해서 도착하는 바람에,
+   *  글은 뜨는데 새로고침하면 사라지는 이상한 상태가 됐다.)
+   * fetchMember 는 결과를 30초 캐시하므로 매번 물어봐도 부담이 없다.
+   */
+  async guildsFor(userId) {
     const out = [];
     for (const guild of client.guilds.cache.values()) {
       if (config.hiddenGuildIds.includes(guild.id)) continue;
-      if (userGuildIds && !userGuildIds.has(guild.id)) continue;
       const member = await fetchMember(guild, userId);
       if (!member) continue;
       out.push(normalizeGuild(guild, { botPresent: true }));
@@ -69,11 +77,10 @@ export const backend = {
   },
 
   /** 봇은 들어가 있는데 이 유저는 아직 멤버가 아닌 길드 (탐색 탭) */
-  async discover(userId, userGuildIds) {
+  async discover(userId) {
     const out = [];
     for (const guild of client.guilds.cache.values()) {
       if (config.hiddenGuildIds.includes(guild.id)) continue;
-      if (userGuildIds?.has(guild.id)) continue;
       const member = await fetchMember(guild, userId);
       if (member) continue;
       out.push(normalizeGuild(guild, { botPresent: true }));

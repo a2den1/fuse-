@@ -47,7 +47,6 @@ router.get('/login', (req, res) => {
         user: { ...DEMO_USER },
         accessToken: null,
         refreshToken: null,
-        guildIds: null,
       });
       setSessionCookie(res, session);
       res.redirect(config.appUrl + '/');
@@ -105,14 +104,16 @@ router.get('/callback', async (req, res) => {
     const token = await tokenRes.json();
 
     const auth = { Authorization: 'Bearer ' + token.access_token };
-    const [userRes, guildsRes] = await Promise.all([
-      fetch(API + '/users/@me', { headers: auth }),
-      fetch(API + '/users/@me/guilds', { headers: auth }),
-    ]);
+    const userRes = await fetch(API + '/users/@me', { headers: auth });
     if (!userRes.ok) throw new Error('사용자 정보를 가져오지 못했습니다.');
 
     const user = normalizeOAuthUser(await userRes.json());
-    const guildIds = guildsRes.ok ? (await guildsRes.json()).map((g) => g.id) : null;
+
+    /*
+     * 소속 서버 목록은 여기서 받아두지 않는다.
+     * 로그인 시점의 목록을 붙들고 있으면 그 뒤에 들어간 서버가 보이지 않는다.
+     * 어느 서버에 속해 있는지는 필요할 때 봇이 직접 확인한다.
+     */
 
     const session = createSession({
       userId: user.id,
@@ -120,7 +121,6 @@ router.get('/callback', async (req, res) => {
       accessToken: token.access_token,
       refreshToken: token.refresh_token || null,
       expiresAt: Date.now() + (token.expires_in || 604800) * 1000,
-      guildIds,
     });
     setSessionCookie(res, session);
     res.redirect(config.appUrl + '/');

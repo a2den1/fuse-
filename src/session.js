@@ -33,7 +33,6 @@ function persist() {
         accessToken: s.accessToken ?? null,
         refreshToken: s.refreshToken ?? null,
         expiresAt: s.expiresAt ?? null,
-        guildIds: s.guildIds ?? null,
         createdAt: s.createdAt,
         touchedAt: s.touchedAt,
       }));
