@@ -2042,3 +2042,14 @@ button.setting-row:hover, .setting-row:has(.switch):hover { background: color-mi
 .reactor-tip.is-in { opacity: 1; transform: translateY(0); }
 /* 손가락으로 쓰는 화면에는 hover 가 없다 */
 @media (pointer: coarse) { .reactor-tip { display: none; } }
+
+/* 검색 화면의 북마크 구획 — 라벨 옆에 아이콘이 붙는다 */
+.section-label { display: flex; align-items: center; gap: 6px; }
+.section-label .ic { width: 15px; height: 15px; }
+
+.rr-more {
+  justify-content: center;
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 600;
+}

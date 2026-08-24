@@ -121,7 +121,7 @@ function riseToTop(fromEl) {
     const scale = to.width ? from.width / to.width : 1;
     if (Math.abs(dy) < 2 && Math.abs(dx) < 2) return;
 
-    target.animate(
+    const main = target.animate(
       [
         { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + scale.toFixed(4) + ')' },
         { transform: 'none' },
@@ -139,6 +139,18 @@ function riseToTop(fromEl) {
       );
       delay += 45;
     }
+
+    /*
+     * 화면이 이 움직임이 끝나기를 기다릴 수 있게 알려준다.
+     *
+     * 다만 창이 가려져 있으면 애니메이션이 아예 흐르지 않아 finished 가
+     * 영영 오지 않는다. 그대로 기다리면 글이 반쯤 그려진 채로 멈춘다.
+     * 길어야 이만큼이라고 못을 박아 둔다.
+     */
+    return Promise.race([
+      main.finished.catch(() => {}),
+      new Promise((done) => { setTimeout(done, 560); }),
+    ]);
   };
 }
 
@@ -174,7 +186,17 @@ function transition(run, morphFrom) {
     untagMorph();
     // 바로 실행한다 — getBoundingClientRect 가 레이아웃을 강제하므로 rAF 를 기다릴 필요가 없고,
     // 기다리면 백그라운드 탭에서는 아예 실행되지 않는다.
-    if (!prefersReducedMotion()) rise();
+    /*
+     * 카드가 올라오는 동안 새 화면이 자기 내용을 다 받아와서 그 자리를 갈아엎으면
+     * 움직임이 첫 프레임에 사라진다. 처음 여는 글은 응답이 느려서 다 보이고
+     * 그 다음부터는 캐시가 있어 곧바로 지워지는 바람에, 최초 1회만 되는 것처럼 보였다.
+     * 화면이 기다릴 수 있도록 끝나는 시점을 state.rise 에 걸어 둔다.
+     */
+    state.rise = prefersReducedMotion() ? null : rise();
+    if (state.rise) {
+      const mine = state.rise;
+      mine.then(() => { if (state.rise === mine) state.rise = null; });
+    }
     return;
   }
 

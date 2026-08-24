@@ -253,20 +253,36 @@ export const backend = {
   async react(channelId, messageId, key, on) {
     const ch = await resolveChannel(channelId);
     if (!ch?.messages) return null;
-    const msg = await ch.messages.fetch(messageId).catch(() => null);
+    const msg = await ch.messages.fetch({ message: messageId, force: true }).catch(() => null);
     if (!msg) return null;
+
+    const findOwn = () => msg.reactions.cache.find((r) => emojiKey(r.emoji) === key)
+      || msg.reactions.resolve(key);
+
     try {
       if (on) {
-        await msg.react(key);
+        if (!findOwn()?.me) await msg.react(key);
       } else {
-        const found = msg.reactions.cache.find((r) => emojiKey(r.emoji) === key);
-        if (found) await found.users.remove(client.user.id);
+        const found = findOwn();
+        if (found?.me) await found.users.remove(client.user.id);
       }
     } catch (err) {
       throw Object.assign(new Error('리액션을 적용하지 못했습니다.'), { status: 400, cause: err });
     }
-    const fresh = await ch.messages.fetch(messageId).catch(() => null);
-    return fresh ? store.upsert(channelId, normalizeMessage(fresh)) : null;
+
+    /*
+     * 바꾼 뒤에 다시 받아오지 않는다.
+     *
+     * 디스코드의 리액션 숫자는 곧바로 갱신되지 않는다. 뗀 직후에 물어보면
+     * me 는 false 인데 숫자는 아직 1 인 상태가 오고, 붙인 직후에 물어보면
+     * 이전 조작이 아직 안 반영돼서 하나 더 많게 나오기도 한다.
+     * 그 숫자로 산수를 하면 누를 때마다 조금씩 어긋난다.
+     *
+     * 그래서 여기서는 바꾸기 전 상태를 그대로 돌려준다. 그 자체로는 앞뒤가
+     * 맞는 값이다. Fuse 유저가 누른 몫은 우리 기록에서 나오므로
+     * (hydrate 참고) 화면에 나가는 숫자는 이 지연과 무관하게 정확하다.
+     */
+    return store.upsert(channelId, normalizeMessage(msg));
   },
 
   /** 이 리액션을 실제로 누른 사람들 (봇은 빼고 — 봇 자리는 Fuse 유저가 채운다) */
@@ -389,8 +405,19 @@ function wire() {
   const onReaction = async (reaction) => {
     try {
       if (reaction.partial) await reaction.fetch();
-      const msg = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
-      if (!msg.guild) return;
+      const cached = reaction.message;
+      if (!cached?.channelId) return;
+      /*
+       * 캐시에 있는 메시지를 그대로 쓰지 않고 다시 받아온다.
+       *
+       * 리액션이 떨어져 나갈 때 discord.js 가 들고 있는 사본은 me 만 false 로
+       * 내리고 숫자는 그대로 두는 경우가 있다. 그걸 저장하면 아무도 누르지
+       * 않았는데 1 이 붙어 있는 글이 남는다. 원본을 다시 받아오는 편이 확실하다.
+       * (개인 서버 규모에서는 리액션 이벤트가 잦지 않아 부담이 되지 않는다)
+       */
+      const ch = await resolveChannel(cached.channelId);
+      const msg = await ch?.messages?.fetch({ message: cached.id, force: true }).catch(() => null);
+      if (!msg?.guild) return;
       const post = store.upsert(msg.channelId, normalizeMessage(msg));
       hooks.postUpdated?.(post);
     } catch { /* 삭제된 메시지 */ }

@@ -7,6 +7,7 @@ import { db, save } from './db.js';
 import { store } from './store.js';
 import {
   hydrate, hydrateMany, setReactor, reactorsOf, rememberAuthorInfo, HEART,
+  markBotReactionPulled,
   toggleBookmark, bookmarksOf,
   pushActivity, activityFor, markActivityRead, unreadCount,
   settingsFor, updateSettings,
@@ -414,9 +415,9 @@ export async function like(session, channelId, messageId) {
     throw Object.assign(new Error('권한이 없습니다.'), { status: 403 });
   }
 
-  const liked = !reactorsOf(channelId, messageId, HEART).includes(session.userId);
-  const updated = await react(session, channelId, messageId, HEART, liked);
-  const result = { liked, count: updated?.likeCount || 0 };
+  // 켤지 끌지는 줄을 선 뒤에 정한다 (react 안에서)
+  const updated = await react(session, channelId, messageId, HEART, 'toggle');
+  const result = { liked: !!updated?.liked, count: updated?.likeCount || 0 };
 
   realtime.toChannel(channelId, 'post:like', (uid) => ({
     channelId, id: messageId, likeCount: result.count,
@@ -469,16 +470,29 @@ export async function react(session, channelId, messageId, key, on) {
     const mine = before.includes(session.userId);
     const others = before.filter((u) => u !== session.userId);
 
+    // 'toggle' 은 "지금 상태의 반대" — 줄을 선 뒤에 정해야 맞다.
+    // 밖에서 미리 정하면 연타했을 때 여섯 번 다 같은 값을 들고 들어온다.
+    const want = on === 'toggle' ? !mine : !!on;
+
     let updated = null;
-    if (on && !mine && !before.length) {
+    if (want && !before.length) {
       // 봇 리액션은 "Fuse 유저가 한 명이라도 남아 있을 때"만 유지한다
       updated = await backend.react(channelId, messageId, key, true);
-    } else if (!on && mine && others.length === 0) {
+      // 붙인 직후에도 디스코드 숫자는 잠깐 흔들린다
+      markBotReactionPulled(channelId, messageId, key);
+    } else if (!want && others.length === 0) {
+      /*
+       * 나 말고 아무도 안 남았으면 봇 리액션을 뗀다.
+       * mine 이 아니어도 시도한다 — 예전에 떼기가 실패해서 봇 것만 남아 있는
+       * 글을 여기서 같이 치운다. 없으면 아무 일도 일어나지 않는다.
+       */
       updated = await backend.react(channelId, messageId, key, false);
+      // 디스코드 숫자가 따라올 때까지는 우리가 뗐다는 사실로 보정한다
+      markBotReactionPulled(channelId, messageId, key);
     }
 
-    if (mine !== on) setReactor(channelId, messageId, key, session.userId, on);
-    if (on) rememberAuthorInfo(session.user);
+    if (mine !== want) setReactor(channelId, messageId, key, session.userId, want);
+    if (want) rememberAuthorInfo(session.user);
 
     const post = updated || (await backend.getMessage(channelId, messageId));
     if (post) eventHooks.postUpdated(post);

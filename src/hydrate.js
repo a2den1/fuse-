@@ -50,6 +50,67 @@ export function reactorsOf(channelId, messageId, key) {
   return db.reactionProxy[rk(channelId, messageId, key)] || [];
 }
 
+/*
+ * "방금 봇 리액션을 뗐다" 는 기억.
+ *
+ * 디스코드는 리액션을 뗀 직후 한동안 me 는 false 로 주면서 숫자는 그대로 준다.
+ * 강제로 다시 받아와도 마찬가지다 — 서버 쪽 집계가 늦게 따라온다.
+ * 그 사이에는 봇이 누른 한 개가 남의 것처럼 세어져서, 아무도 누르지 않았는데
+ * 1 이 붙어 있는 글이 된다.
+ *
+ * 우리가 뗐다는 것은 우리가 안다. 잠깐 기억해 뒀다가 그동안만 봇 몫을 빼준다.
+ * 시간이 지나면 디스코드 숫자가 맞아 있으므로 기억을 버린다.
+ */
+const SETTLE_MS = 8_000;
+const pulled = new Map();      // `${ch}:${id}:${key}` -> 언제까지 흔들릴지
+const othersCache = new Map(); // `${ch}:${id}:${key}` -> 마지막으로 믿을 만했던 "남이 누른 수"
+
+export function markBotReactionPulled(channelId, messageId, key) {
+  pulled.set(rk(channelId, messageId, key), Date.now() + SETTLE_MS);
+}
+
+function shaky(channelId, messageId, key) {
+  const k = rk(channelId, messageId, key);
+  const until = pulled.get(k);
+  if (!until) return false;
+  if (Date.now() > until) { pulled.delete(k); return false; }
+  return true;
+}
+
+/**
+ * 남이(디스코드에서 직접) 누른 수.
+ *
+ * 우리가 방금 건드렸으면 디스코드 숫자는 잠깐 못 믿는다. 그럴 때는
+ * 마지막으로 앞뒤가 맞았을 때 세어둔 값을 쓴다. 어차피 우리가 봇 리액션을
+ * 붙이거나 떼는 것은 이 숫자를 바꾸지 않는다 — 남이 누른 건 그대로다.
+ */
+function othersCountOf(channelId, messageId, r, weProxy) {
+  const k = rk(channelId, messageId, r.key);
+  const trustworthy = !shaky(channelId, messageId, r.key) && r.botReacted === weProxy;
+
+  if (trustworthy) {
+    const n = Math.max(r.count - (r.botReacted ? 1 : 0), 0);
+    othersCache.set(k, n);
+    return n;
+  }
+  /*
+   * 믿을 만한 값을 아직 한 번도 못 봤으면 0 으로 본다.
+   * 근거 없이 "남이 누른 사람이 있다" 고 지어내지 않는다는 뜻이다.
+   * 남이 이미 누른 리액션이라면 그 전의 평범한 조회에서 이미 세어져 있다.
+   */
+  return othersCache.get(k) ?? 0;
+}
+
+/** 이 글에 Fuse 쪽에서 누른 것 전부 — key -> [userId] */
+export function proxiedReactionsOf(channelId, messageId) {
+  const prefix = `${channelId}:${messageId}:`;
+  const out = new Map();
+  for (const [k, users] of Object.entries(db.reactionProxy)) {
+    if (k.startsWith(prefix) && users?.length) out.set(k.slice(prefix.length), users);
+  }
+  return out;
+}
+
 export function setReactor(channelId, messageId, key, userId, on) {
   const k = rk(channelId, messageId, key);
   const list = db.reactionProxy[k] ? [...db.reactionProxy[k]] : [];
@@ -70,11 +131,31 @@ export function hydrate(post, viewerId, { canManage = false } = {}) {
   if (!post) return null;
   const mine = post.author?.id === viewerId;
 
-  const all = (post.reactions || []).map((r) => {
-    const proxied = reactorsOf(post.channelId, post.id, r.key);
-    // 봇이 대신 누른 리액션은 Fuse 유저 수가 진짜 숫자다.
-    const count = r.botReacted ? Math.max(r.count - 1, 0) + proxied.length : r.count;
-    return { ...r, count, me: proxied.includes(viewerId), proxied: proxied.length };
+  /*
+   * 리액션 숫자를 두 조각으로 나눠서 센다.
+   *
+   *   남이 디스코드에서 직접 누른 것  = 디스코드 숫자 - (봇이 눌렀으면 1)
+   *   Fuse 에서 누른 것              = 우리 기록에 있는 사람 수
+   *
+   * 봇은 여러 사람을 대신해 한 번만 누르므로, 봇 몫을 빼고 우리 사람 수를 얹어야
+   * 맞는다. 이렇게 나눠 두면 디스코드 숫자가 잠깐 뒤처져 있어도(누른 직후에는
+   * 흔한 일이다) 우리가 아는 몫은 늘 정확하다.
+   *
+   * 아직 디스코드 쪽에 안 보이는 것도 우리 기록에 있으면 자리를 만들어 준다 —
+   * 누르자마자 사라졌다가 나타나지 않게.
+   */
+  const proxyMap = proxiedReactionsOf(post.channelId, post.id);
+  const merged = [...(post.reactions || [])];
+  for (const key of proxyMap.keys()) {
+    if (!merged.some((r) => r.key === key)) {
+      merged.push({ key, name: key, id: null, animated: false, url: null, count: 0, botReacted: false });
+    }
+  }
+
+  const all = merged.map((r) => {
+    const proxied = proxyMap.get(r.key) || [];
+    const others = othersCountOf(post.channelId, post.id, r, proxied.length > 0);
+    return { ...r, count: others + proxied.length, me: proxied.includes(viewerId), proxied: proxied.length };
   }).filter((r) => r.count > 0);
 
   // 하트는 액션 바의 버튼이 맡는다. 칩으로 또 보여주면 같은 것이 두 번 나온다.

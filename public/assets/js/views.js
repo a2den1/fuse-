@@ -139,6 +139,11 @@ export function postView(channelId, messageId, seed = null) {
     try {
       const data = await api.post(channelId, messageId);
       rememberPost(data.post);
+
+      // 씨앗 카드가 위로 올라오는 중이면 끝날 때까지 기다린다.
+      // 여기서 바로 지우면 그 움직임이 첫 프레임에 사라진다.
+      if (state.rise) await state.rise;
+
       clear(wrap);
       focusOn(data.post.threadId || data.post.channelId);
 
@@ -290,9 +295,54 @@ export function searchView(initialQuery = '') {
 
   const RECENT_ICON = { post: 'comment', user: 'user', guild: 'building', channel: 'hash' };
 
-  /** 검색어가 비었을 때 — 최근에 본 것들 */
+  /*
+   * 담아둔 글.
+   *
+   * 검색 화면은 "다시 찾으러 오는 곳" 이라 북마크가 여기 있는 게 자연스럽다.
+   * 목록을 통째로 늘어놓지 않고 몇 개만 보여주고 나머지는 북마크 화면으로 보낸다.
+   */
+  const bookmarkBox = h('div');
+
+  async function showBookmarks() {
+    clear(bookmarkBox);
+    let posts = [];
+    try {
+      ({ posts } = await api.bookmarks());
+    } catch { return; }
+    if (!posts.length || lastQuery.trim()) return;
+
+    bookmarkBox.append(h('div', { class: 'section-head' },
+      h('div', { class: 'section-label' }, icon('bookmark'), h('span', { text: '북마크' })),
+      h('button', {
+        class: 'section-action', type: 'button', text: '모두 보기',
+        onClick: () => nav.go('/bookmarks'),
+      })));
+
+    for (const post of posts.slice(0, 3)) {
+      bookmarkBox.append(h('button', {
+        class: 'result-row', type: 'button',
+        onClick: () => nav.go('/p/' + post.channelId + '/' + post.id, { seed: post }),
+      },
+        h('img', { class: 'rr-icon', src: post.author.avatar, alt: '', loading: 'lazy', style: { borderRadius: '50%' } }),
+        h('div', { class: 'rr-main' },
+          h('b', { text: post.author.displayName }),
+          h('small', { text: plainText(post.content, post.mentions).slice(0, 70) || '(첨부만 있는 글)' })),
+        h('span', { class: 'rr-time muted', text: timeAgo(post.bookmarkedAt || post.createdAt) })));
+    }
+    if (posts.length > 3) {
+      bookmarkBox.append(h('button', {
+        class: 'result-row rr-more', type: 'button', text: `북마크 ${posts.length}개 모두 보기`,
+        onClick: () => nav.go('/bookmarks'),
+      }));
+    }
+  }
+
+  /** 검색어가 비었을 때 — 담아둔 글과 최근에 본 것들 */
   function showRecents() {
     clear(results);
+    results.append(bookmarkBox);
+    showBookmarks();
+
     const list = recents();
     if (!list.length) {
       results.append(emptyState('search', '무엇을 찾으시나요', '글, 사람, 서버, 채널을 한 번에 찾습니다.'));
@@ -321,6 +371,10 @@ export function searchView(initialQuery = '') {
         h('span', { class: 'rr-time muted', text: timeAgo(item.at) })));
     }
   }
+
+  const offBookmarks = on('bookmarks:changed', () => {
+    if (!lastQuery.trim()) showBookmarks();
+  });
 
   async function run(q) {
     lastQuery = q;
@@ -391,6 +445,7 @@ export function searchView(initialQuery = '') {
     results,
   );
   requestAnimationFrame(() => { if (!initialQuery) input.focus(); });
+  el._cleanup = () => offBookmarks();
   return el;
 }
 

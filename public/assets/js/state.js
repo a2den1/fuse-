@@ -8,6 +8,7 @@ export const state = {
   demo: false,
   bot: null,
   guildFilter: null, // 피드에서 고른 서버 id
+  rise: null,        // 카드가 위로 올라오는 중이면 그 움직임이 끝나는 약속
 };
 
 const listeners = new Map();
