@@ -103,12 +103,21 @@
 
 html, body { margin: 0; padding: 0; height: 100%; }
 
-/* Tossface 를 맨 앞에 둔다. 이모지 유니코드 구간만 선언된 폰트라
-   글자는 그대로 Pretendard 가 맡고 이모지만 토스페이스로 그려진다. */
+/*
+ * 본문 폰트가 먼저, 이모지 폰트가 그 뒤.
+ *
+ * 전에는 토스페이스를 맨 앞에 뒀다. 이모지 구간만 선언된 폰트라고 봤는데
+ * 실은 키캡 이모지(1️⃣) 때문에 숫자 0-9 와 #, * 글리프도 갖고 있다.
+ * 맨 앞에 있으니 평범한 숫자와 채널 이름의 # 까지 토스페이스가 그렸다.
+ * 폭을 재보면 40px 기준 46.00 대 23.83 — 숫자만 유난히 커 보이던 이유다.
+ *
+ * Pretendard 를 앞에 두면 글자·숫자는 본문 폰트가 맡고, 본문 폰트에 없는
+ * 이모지만 토스페이스로 넘어간다.
+ */
 body {
   background: var(--shell);
   color: var(--text);
-  font-family: Tossface, 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+  font-family: 'Pretendard Variable', Pretendard, Tossface, -apple-system, BlinkMacSystemFont,
     'Apple SD Gothic Neo', system-ui, 'Malgun Gothic', sans-serif;
   font-size: 15px;
   line-height: 1.42;
@@ -267,13 +276,14 @@ a:focus-visible,
   pointer-events: none;
   z-index: 0;
 }
-/* 새 글(+) 은 늘 유리 한 겹을 깔고 있어 다른 항목과 구분된다 */
-.nav-accent .nav-ico {
-  background: var(--glass-pill);
-  backdrop-filter: blur(6px) saturate(1.6) brightness(1.28);
-  -webkit-backdrop-filter: blur(6px) saturate(1.6) brightness(1.28);
-  box-shadow: inset 0 1px 0 var(--glass-sheen), 0 2px 10px rgba(0, 0, 0, 0.16);
-}
+/*
+ * 새 글(+) 도 다른 항목과 같은 버튼이다.
+ *
+ * 전에는 여기에만 유리를 늘 깔아 뒀는데, 그러면 유리가 두 군데가 된다 —
+ * 움직이는 알약 하나와 늘 켜져 있는 +. 메뉴에 유리는 하나만 있고,
+ * 그 하나가 고른 곳으로 옮겨 다니는 편이 낫다.
+ * + 는 선 굵기만 조금 올려 눈에 띄게 둔다.
+ */
 .nav-accent { color: var(--text); }
 .nav-accent .ic { stroke-width: 2.2; }
 

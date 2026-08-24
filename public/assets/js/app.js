@@ -265,7 +265,7 @@ document.addEventListener('click', (e) => {
 const NAV_ITEMS = [
   { path: '/', icon: 'home', label: '홈' },
   { path: '/search', icon: 'search', label: '검색' },
-  { path: null, icon: 'plus', label: '새 글', action: () => openComposer(), accent: true },
+  { path: '/compose', icon: 'plus', label: '새 글', action: () => openComposer(), accent: true },
   { path: '/activity', icon: 'heart', label: '알림', badge: true },
   { path: 'profile', icon: 'user', label: '프로필' },
 ];
@@ -331,8 +331,12 @@ function placePill(group, btn, retry = 0) {
 }
 
 function syncNav(pathname) {
-  // 스트로크 아이콘은 채우면 원래 모양이 뭉개진다 (검색은 원, 홈은 덩어리).
-  // 활성 표시는 색과 선 굵기, 그리고 뒤에 깔리는 유리 알약으로만 한다.
+  /*
+   * 스트로크 아이콘은 채우면 원래 모양이 뭉개진다 (검색은 원, 홈은 덩어리).
+   * 활성 표시는 색과 선 굵기, 그리고 뒤에 깔리는 유리 알약으로만 한다.
+   * 유리는 메뉴 통틀어 이 알약 하나뿐이고, 고른 항목으로 옮겨 다닌다 —
+   * 새 글(+) 에 있을 때도 마찬가지다.
+   */
   for (const btn of railLinks) {
     const active = !!btn._path && pathname.startsWith(btn._path);
     btn.classList.toggle('is-active', active);

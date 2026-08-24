@@ -1,6 +1,6 @@
 {
   "name": "fuse",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "Fuse — 스레드 스타일 UI로 쓰는 디스코드 클라이언트",
   "type": "module",
