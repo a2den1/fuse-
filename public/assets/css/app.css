@@ -19,6 +19,7 @@
   --bg-soft: #f2f2f6;      /* 카드 위 한 겹 더 */
   --bg-hover: rgba(0, 0, 0, 0.045);
   --bookmark: #2f7de1;
+  --login-veil: rgba(255, 255, 255, 0.74);
   --tip-bg: #1c1c20;
   --tip-text: #f4f4f6;
   --bg-press: rgba(0, 0, 0, 0.08);
@@ -71,6 +72,7 @@
   --bg-soft: #1a1a1e;
   --bg-hover: rgba(255, 255, 255, 0.07);
   --bookmark: #58a6ff;
+  --login-veil: rgba(0, 0, 0, 0.62);
   --tip-bg: #f2f2f6;
   --tip-text: #101013;
   --bg-press: rgba(255, 255, 255, 0.12);
@@ -277,15 +279,12 @@ a:focus-visible,
   z-index: 0;
 }
 /*
- * 새 글(+) 도 다른 항목과 같은 버튼이다.
+ * 새 글(+) 도 다른 항목과 똑같은 버튼이다.
  *
- * 전에는 여기에만 유리를 늘 깔아 뒀는데, 그러면 유리가 두 군데가 된다 —
- * 움직이는 알약 하나와 늘 켜져 있는 +. 메뉴에 유리는 하나만 있고,
- * 그 하나가 고른 곳으로 옮겨 다니는 편이 낫다.
- * + 는 선 굵기만 조금 올려 눈에 띄게 둔다.
+ * 전에는 여기에만 유리를 늘 깔아 뒀고, 그 다음에는 색과 선 굵기로
+ * 도드라지게 뒀다. 어느 쪽이든 + 만 혼자 진해 보인다.
+ * 다섯 항목이 같은 무게로 있다가, 고른 하나에만 유리 알약이 가는 게 맞다.
  */
-.nav-accent { color: var(--text); }
-.nav-accent .ic { stroke-width: 2.2; }
 
 /* 활성 표시는 색이 아니라 유리 재질로 — 뒤가 비쳐 보이는 한 겹 */
 .tabbar .nav-pill,
@@ -554,6 +553,8 @@ a:focus-visible,
 
 .post-head { display: flex; align-items: center; gap: 6px; min-width: 0; line-height: 1.2; }
 
+/* 이름과 위치도 눌러서 이동하는 링크다 — 세로로만 넓혀 줄 높이는 그대로 둔다
+   (가로로 넓히면 말줄임 폭이 달라져 이름이 더 일찍 잘린다) */
 .post-author {
   font-weight: 650;
   font-size: 15px;
@@ -562,6 +563,10 @@ a:focus-visible,
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 46%;
+  /* 짧은 이름("구름")은 25px 밖에 안 되므로 좌우로도 조금 넓힌다.
+     4px 씩이라 말줄임 폭에는 거의 영향이 없다. */
+  padding: 9px 4px;
+  margin: -9px -4px;
 }
 .post-author:hover { text-decoration: underline; }
 
@@ -593,6 +598,8 @@ a:focus-visible,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-block: 10px;
+  margin-block: -10px;
 }
 .post-where:hover { color: var(--text); }
 
@@ -791,7 +798,17 @@ a:focus-visible,
 
 .post-meta-counts { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text-2); }
 .post-meta-counts[hidden] { display: none; }
-.meta-link { color: inherit; font-size: inherit; }
+/*
+ * 손가락으로 눌러야 하는 것은 눈에 보이는 것보다 넓게.
+ * 글자 높이는 19px 뿐이라 그대로 두면 잘 안 눌린다.
+ * 안쪽 여백으로 넓히고 바깥 여백으로 되돌려, 보이는 자리는 그대로 둔다.
+ */
+.meta-link {
+  color: inherit;
+  font-size: inherit;
+  padding: 9px 6px;
+  margin: -9px -6px;
+}
 .meta-link:hover { color: var(--text); }
 
 .facepile { display: flex; align-items: center; }
@@ -1157,7 +1174,12 @@ a:focus-visible,
 .searchfield .ic { width: 18px; height: 18px; color: var(--text-3); }
 .searchfield input { flex: 1; min-width: 0; font-size: 15.5px; }
 .searchfield input::placeholder { color: var(--text-3); }
-.searchfield .clear { color: var(--text-3); width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; }
+.searchfield .clear {
+  color: var(--text-3);
+  width: 34px; height: 34px;
+  margin: -6px -8px -6px 0;   /* 넓어진 만큼 자리는 되돌린다 */
+  display: grid; place-items: center; border-radius: 50%;
+}
 .searchfield .clear:hover { color: var(--text); background: var(--bg-hover); }
 .searchfield .clear .ic { width: 14px; height: 14px; }
 
@@ -1219,7 +1241,13 @@ button.result-row:active { transform: scale(0.99); }
 .topbar-action.is-primary { background: var(--btn-bg); color: var(--btn-fg); }
 .topbar-action.is-primary:hover { background: var(--btn-bg); opacity: 0.86; }
 .topbar-action.is-primary:disabled { background: var(--btn-mute); color: var(--btn-fg); cursor: default; transform: none; }
-.topbar .sh-cancel { font-size: 15px; color: var(--text-2); padding: 0 4px; }
+.topbar .sh-cancel {
+  font-size: 15px;
+  color: var(--text-2);
+  min-height: 40px;
+  padding: 0 10px;
+  margin-left: -6px;
+}
 .topbar .sh-cancel:hover { color: var(--text); }
 
 /* 프로필 소개 인라인 편집 */
@@ -1885,63 +1913,176 @@ button.setting-row:hover, .setting-row:has(.switch):hover { background: color-mi
 
 /* ---------------------------- 로그인 ---------------------------- */
 
+/*
+ * 스레드 로그인 화면의 구성을 따른다.
+ * 카드로 감싸지 않고, 화면 한가운데 한 줄로 세운다.
+ * 뒤에는 색이 번지고, 앞에는 로고 - 한 줄 문장 - 큰 버튼 - 작은 각주.
+ */
+.login-body { background: var(--shell); overflow: hidden; }
+
+.login-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.login-glow .glow {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.5;
+}
+.login-glow .glow-1 {
+  width: 46vmax; height: 46vmax;
+  top: -14vmax; left: -10vmax;
+  background: #f0913a;
+  animation: drift-1 22s var(--ease) infinite alternate;
+}
+.login-glow .glow-2 {
+  width: 40vmax; height: 40vmax;
+  bottom: -16vmax; right: -8vmax;
+  background: #5865f2;
+  animation: drift-2 26s var(--ease) infinite alternate;
+}
+.login-glow .glow-3 {
+  width: 30vmax; height: 30vmax;
+  top: 42%; left: 52%;
+  background: #e5384f;
+  opacity: 0.32;
+  animation: drift-3 30s var(--ease) infinite alternate;
+}
+@keyframes drift-1 { to { transform: translate(9vmax, 7vmax) scale(1.12); } }
+@keyframes drift-2 { to { transform: translate(-8vmax, -6vmax) scale(1.16); } }
+@keyframes drift-3 { to { transform: translate(-11vmax, 5vmax) scale(0.88); } }
+
+/* 색 번짐이 글자를 삼키지 않게 한 겹 눌러 준다 */
+.login-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--login-veil);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
 .login {
+  position: relative;
+  z-index: 1;
   min-height: 100dvh;
   display: grid;
-  place-items: center;
-  padding: 28px;
-  background: var(--shell);
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  padding: 32px 24px calc(20px + env(safe-area-inset-bottom));
 }
-.login-card {
+.login-inner {
   width: 100%;
-  max-width: 400px;
+  max-width: 372px;
+  align-self: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
   text-align: center;
-  background: var(--bg);
-  border-radius: 30px;
-  padding: 42px 30px 34px;
-  box-shadow: var(--shadow-2);
+  animation: login-in 0.62s var(--spring) both;
 }
+@keyframes login-in { from { opacity: 0; transform: translateY(16px); } }
+
 .login-logo { color: var(--text); }
-.login-logo svg { width: 64px; height: 85px; }
-.login h1 { font-size: 27px; font-weight: 800; letter-spacing: -0.035em; }
-.login p { font-size: 15px; color: var(--text-2); line-height: 1.55; }
-.login .btn-discord {
+.login-logo svg { width: 58px; height: 77px; }
+
+.login-title {
+  margin: 22px 0 0;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.34;
+  letter-spacing: -0.038em;
+}
+
+/* 스레드의 "Instagram으로 계속" 카드 — 왼쪽 표식, 가운데 글, 오른쪽 화살표 */
+.login-cta {
+  margin-top: 28px;
   width: 100%;
-  height: 52px;
-  border-radius: 16px;
+  min-height: 68px;
+  padding: 12px 14px 12px 12px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  text-align: left;
+  border-radius: 20px;
+  background: var(--bg);
+  box-shadow: var(--shadow-2);
+  transition: transform var(--dur-fast) var(--spring), background var(--dur) var(--ease);
+}
+.login-cta:hover { background: var(--bg-soft); }
+.login-cta:active { transform: scale(0.975); }
+
+.cta-mark {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
   background: #5865f2;
   color: #fff;
-  font-size: 15.5px;
-  font-weight: 650;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  transition: filter var(--dur) var(--ease), transform var(--dur-fast) var(--spring);
 }
-.login .btn-discord:hover { filter: brightness(1.1); }
-.login .btn-discord:active { transform: scale(0.97); }
-.login .btn-discord svg { width: 20px; height: 20px; }
-.login .note {
-  font-size: 13px;
+.cta-mark svg { width: 24px; height: 24px; }
+
+.cta-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cta-text b { font-size: 15.5px; font-weight: 700; letter-spacing: -0.015em; }
+.cta-text small { font-size: 12.5px; color: var(--text-2); }
+
+.cta-go { flex: none; color: var(--text-3); display: grid; place-items: center; }
+.cta-go svg { width: 20px; height: 20px; }
+
+.login-note {
+  margin: 18px 4px 0;
+  font-size: 12.5px;
+  line-height: 1.7;
   color: var(--text-2);
-  line-height: 1.65;
-  padding: 15px 17px;
-  border-radius: 16px;
-  background: var(--bg-soft);
-  text-align: left;
 }
-.login .error {
-  font-size: 14px;
+.login-note b { color: var(--text); font-weight: 650; }
+.login-note code {
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11.5px;
+}
+
+.login-error {
+  margin-top: 20px;
+  width: 100%;
+  font-size: 13.5px;
+  line-height: 1.55;
   color: var(--danger);
   padding: 12px 15px;
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  width: 100%;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+.login-error[hidden] { display: none; }
+
+.login-foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.login-foot a { color: inherit; }
+.login-foot a:hover { color: var(--text-2); text-decoration: underline; }
+
+/* 화면이 낮으면 (가로로 눕힌 폰) 여백부터 줄인다 */
+@media (max-height: 620px) {
+  .login-logo svg { width: 46px; height: 61px; }
+  .login-title { margin-top: 16px; font-size: 22px; }
+  .login-cta { margin-top: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-glow .glow { animation: none; }
+  .login-inner { animation: none; }
 }
 
 /* ------------------- 피드 위 인라인 작성창 (트위터식) ------------------- */
